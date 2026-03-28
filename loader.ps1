@@ -31,12 +31,12 @@ $key = Read-Host "Enter license key"
 if ($keys -contains $key) {
 
     # โหลด main.ps1 แบบเสถียร
-    $script = (iwr "https://raw.githubusercontent.com/USER/rmt-check/main/main.ps1").Content
+    $script = (iwr "https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1").Content
     iex $script
 
     Write-Host ""
     Write-Host "Successfully" -ForegroundColor Green
 }
 else {
-    Write-Host "[!] Invalid key." -ForegroundColor Red
+    Write-Host "Invalid key" -ForegroundColor Red
 }
