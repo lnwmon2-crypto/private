@@ -2,7 +2,7 @@ $path = "$env:TEMP\run.bat"
 
 @"
 @echo off
-mode con: cols=40 lines=15
+mode con: cols=40 lines=25
 title C:\Windows\System32\conhost.exe
 color 0F
 cls
