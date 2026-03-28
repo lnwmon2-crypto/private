@@ -400,7 +400,7 @@ Get-PhysicalDisk -EA SilentlyContinue | Set-PhysicalDisk -MediaType SSD -EA Sile
     "WSearch",
     "SysMain",
     "Fax","PrintNotify","RemoteRegistry","TabletInputService",
-    "SharedAccess","lmhosts","NvTelemetryContainer","DoSvc",
+    "lmhosts","DoSvc",
     "WpnService","CDPSvc","OneSyncSvc","UnistoreSvc","UserDataSvc",
     "SEMgrSvc","ScDeviceEnum","SCardSvr",
     "RetailDemo","MapsBroker","PhoneSvc","MessagingService",
