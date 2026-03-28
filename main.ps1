@@ -323,14 +323,18 @@ $mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfi
 }
 
 # ============================================================
-# [E] GPU — ABSOLUTE MAXIMUM
+# [E] GPU — ABSOLUTE MAXIMUM (รองรับ Desktop + Laptop)
 # ============================================================
 
+# ตรวจ Laptop / Desktop — ใช้ทั้งไฟล์
+$isLaptop = (Get-WmiObject -Class Win32_SystemEnclosure -EA SilentlyContinue).ChassisTypes |
+    Where-Object { $_ -in @(8,9,10,11,12,14,18,21,30,31,32) }
+
 $gpuDrv = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
-RegSet $gpuDrv "HwSchMode"    2
-RegSet $gpuDrv "TdrDelay"     8    # แก้: 60 → 8 (ป้องกัน SystemSettings.exe crash)
-RegSet $gpuDrv "TdrDdiDelay"  8    # แก้: 60 → 8
-RegSet $gpuDrv "TdrLevel"     3    # แก้: 0 → 3 (ค่าปกติ Windows, TdrLevel=0 ทำให้ Settings crash)
+RegSet $gpuDrv "HwSchMode"   2
+RegSet $gpuDrv "TdrDelay"    8   # ห้ามเปลี่ยน — ถ้าเป็น 0 ทำให้ NVCP crash
+RegSet $gpuDrv "TdrDdiDelay" 8
+RegSet $gpuDrv "TdrLevel"    3   # ค่า default Windows — ห้ามเปลี่ยน ถ้าเป็น 0 NVCP crash
 
 # D3D Flip — ลด Present Latency
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Video" -Recurse -EA SilentlyContinue |
@@ -340,14 +344,26 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Video" -Recurse -EA Silent
     Set-ItemProperty $_.PSPath "PreferD3DFlip"         1 -EA SilentlyContinue
 }
 
-# NVIDIA driver tweaks
+# NVIDIA driver tweaks — แยก Laptop / Desktop
 $nvDrv = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
-RegSet $nvDrv "EnableMidBufferPreemption"    0
-RegSet $nvDrv "EnableCEPreemption"           0
-RegSet $nvDrv "EnableMidGfxPreemptionVGPU"  0
-RegSet $nvDrv "RMGpsBandwidthBoostEnable"    1
-RegSet $nvDrv "RMDeepL2"                     0
-RegSet $nvDrv "RMFastGC"                     1
+If ($isLaptop) {
+    # Laptop: เปิด Preemption ไว้ — Optimus/MUX Switch ต้องการ ปิดแล้วเฟรมตก
+    RegSet $nvDrv "EnableMidBufferPreemption"   1
+    RegSet $nvDrv "EnableCEPreemption"          1
+    RegSet $nvDrv "EnableMidGfxPreemptionVGPU"  1
+    RegSet $nvDrv "DisablePreemption"           0
+} Else {
+    # Desktop: ปิด Preemption ลด latency ได้เต็มที่
+    RegSet $nvDrv "EnableMidBufferPreemption"   0
+    RegSet $nvDrv "EnableCEPreemption"          0
+    RegSet $nvDrv "EnableMidGfxPreemptionVGPU"  0
+    RegSet $nvDrv "DisablePreemption"           1
+}
+RegSet $nvDrv "RMGpsBandwidthBoostEnable"   1
+RegSet $nvDrv "RMDeepL2"                    0
+RegSet $nvDrv "RMFastGC"                    1
+RegSet $nvDrv "GpuPowerPolicy"              1
+RegSet $nvDrv "OverrideMaxPerf"             1
 
 # ============================================================
 # [F] RAM / MEMORY ABSOLUTE MAX
@@ -458,22 +474,54 @@ Start-Sleep -Milliseconds 300
 Restart-Service Netman   -Force -EA SilentlyContinue
 
 # ============================================================
-# [FIX-NVIDIA] คืน NVIDIA Services — ต้องรันหลัง SERVICES KILL
-# (NvTelemetry ปิดได้ แต่ Display/Container/ShadowPlay ต้องเปิด)
+# ============================================================
+# [FIX-NVIDIA] คืน NVIDIA Services ครบทุกตัว + แก้ NVCP เปิดไม่ขึ้น
+#   รองรับทั้ง Desktop และ Laptop (Optimus / MUX Switch)
 # ============================================================
 
-# Driver display หลัก — เปิดก่อน
-SvcForceEnable "nvlddmkm"                        "Automatic"
-Start-Sleep -Milliseconds 500
-# NVIDIA Control Panel + GeForce Experience + ShadowPlay/Overlay
-SvcForceEnable "NVDisplay.ContainerLocalSystem"  "Automatic"
-SvcForceEnable "NvContainerLocalSystem"          "Automatic"
-SvcForceEnable "NvContainerNetworkService"       "Automatic"
+# Core Driver — ต้องเปิดก่อนทุกอย่าง
+SvcForceEnable "nvlddmkm" "Automatic"
+Start-Sleep -Milliseconds 800
 
-# Coolbits — เปิด OC / Advanced clock controls ใน NVCP
+# NVIDIA Control Panel + Container services ทุกตัว
+# NVDisplay.ContainerLocalSystem = NVIDIA Control Panel หลัก
+# NvModuleTracker                = NVCP module tracker — ขาดแล้ว NVCP เปิดไม่ขึ้น
+@(
+    "NVDisplay.ContainerLocalSystem",
+    "NvContainerLocalSystem",
+    "NvContainerNetworkService",
+    "NvModuleTracker"
+) | ForEach-Object { SvcForceEnable $_ "Automatic" }
+
+Start-Sleep -Milliseconds 500
+
+# Laptop Optimus / Hybrid GPU
+If ($isLaptop) {
+    @("NvHybridEngD","nvsvc","NVSMService") | ForEach-Object { SvcForceEnable $_ "Automatic" }
+}
+
+# Restart ตามลำดับ dependency
+Start-Sleep -Milliseconds 500
+Restart-Service "NVDisplay.ContainerLocalSystem" -Force -EA SilentlyContinue
+Start-Sleep -Milliseconds 500
+Restart-Service "NvContainerLocalSystem"         -Force -EA SilentlyContinue
+
+# Registry ที่ทำให้ NVCP เปิดไม่ขึ้น — คืนค่า
+$nvcpKey = "HKLM:\SOFTWARE\NVIDIA Corporation\Global"
+If (-not (Test-Path $nvcpKey)) { New-Item $nvcpKey -Force | Out-Null }
+Set-ItemProperty $nvcpKey "DisplayDriverVersion" "" -Type String -EA SilentlyContinue
+
+# Coolbits — เปิด OC / Advanced controls ใน NVCP
 RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "Coolbits" 24
 
-# ปิดเฉพาะ Telemetry ตัวเดียว (ไม่ใช่ Container)
+# Laptop Max Performance เมื่อเสียบปลั๊ก
+If ($isLaptop) {
+    RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerMizerEnable"  1
+    RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerMizerLevel"   1
+    RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerMizerLevelAC" 1
+}
+
+# ปิดเฉพาะ Telemetry — ไม่แตะ Container
 SvcKill "NvTelemetryContainer"
 
 # ============================================================
@@ -600,22 +648,31 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\ACPI" -EA SilentlyContinue |
         }
     }
 
-# --- X2: NVIDIA Low Latency Mode สุดขีด ---
-# Ultra Low Latency (Null rendering queue)
+# --- X2: NVIDIA Low Latency Mode — ตรวจ Laptop/Desktop อัตโนมัติ ---
 $nvProfile = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
-RegSet $nvProfile "EnableMidBufferPreemption"       0   # ปิด preemption ระหว่าง buffer
-RegSet $nvProfile "EnableCEPreemption"              0
-RegSet $nvProfile "EnableGrGfxPreemption"           0   # ปิด Graphics preemption
-RegSet $nvProfile "EnableMidGfxPreemptionVGPU"      0
-RegSet $nvProfile "DisablePreemption"               1   # Force disable preemption
-RegSet $nvProfile "RmGdiSharedMemoryPoolSize"       0
-RegSet $nvProfile "NvContextPrimary"                1   # Primary context priority
-RegSet $nvProfile "GpuPowerPolicy"                  1   # Maximize GPU power
-RegSet $nvProfile "OverrideMaxPerf"                 1   # Override to max perf
-RegSet $nvProfile "RMGpsBandwidthBoostEnable"       1
-RegSet $nvProfile "RMDeepL2"                        0
-RegSet $nvProfile "RMFastGC"                        1
-RegSet $nvProfile "RmProfilingAdminOnly"            0
+If ($isLaptop) {
+    # Laptop — เปิด Preemption ไว้ Optimus ต้องการ ปิดแล้วเฟรมตก
+    RegSet $nvProfile "EnableMidBufferPreemption"   1
+    RegSet $nvProfile "EnableCEPreemption"          1
+    RegSet $nvProfile "EnableGrGfxPreemption"       1
+    RegSet $nvProfile "EnableMidGfxPreemptionVGPU"  1
+    RegSet $nvProfile "DisablePreemption"           0
+} Else {
+    # Desktop — ปิดได้เต็มที่
+    RegSet $nvProfile "EnableMidBufferPreemption"   0
+    RegSet $nvProfile "EnableCEPreemption"          0
+    RegSet $nvProfile "EnableGrGfxPreemption"       0
+    RegSet $nvProfile "EnableMidGfxPreemptionVGPU"  0
+    RegSet $nvProfile "DisablePreemption"           1
+}
+RegSet $nvProfile "RmGdiSharedMemoryPoolSize"   0
+RegSet $nvProfile "NvContextPrimary"            1
+RegSet $nvProfile "GpuPowerPolicy"              1
+RegSet $nvProfile "OverrideMaxPerf"             1
+RegSet $nvProfile "RMGpsBandwidthBoostEnable"   1
+RegSet $nvProfile "RMDeepL2"                    0
+RegSet $nvProfile "RMFastGC"                    1
+RegSet $nvProfile "RmProfilingAdminOnly"        0
 
 # NVIDIA DX Present Queue — ลด Frame queue
 $nvDX = "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak"
@@ -1146,17 +1203,23 @@ RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
 RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"       1
 
 # --- Q4: FPS Stability — ปิดทุกอย่างที่ทำให้ frame time spike ---
-# ปิด NVIDIA Low Power Mode (บังคับ P0 state ตลอด)
 $nvCtrl = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
-RegSet $nvCtrl "EnableMidBufferPreemption"        0
-RegSet $nvCtrl "EnableCEPreemption"               0
-RegSet $nvCtrl "EnableGrGfxPreemption"            0
-RegSet $nvCtrl "DisablePreemption"                1
-RegSet $nvCtrl "GpuPowerPolicy"                   1
-RegSet $nvCtrl "OverrideMaxPerf"                  1
-RegSet $nvCtrl "RMFastGC"                         1   # Fast garbage collect GPU memory
-RegSet $nvCtrl "RMGpsBandwidthBoostEnable"        1
-RegSet $nvCtrl "EnableAsyncCompute"               1   # Async compute (ลด GPU stall)
+If ($isLaptop) {
+    RegSet $nvCtrl "EnableMidBufferPreemption"   1
+    RegSet $nvCtrl "EnableCEPreemption"          1
+    RegSet $nvCtrl "EnableGrGfxPreemption"       1
+    RegSet $nvCtrl "DisablePreemption"           0
+} Else {
+    RegSet $nvCtrl "EnableMidBufferPreemption"   0
+    RegSet $nvCtrl "EnableCEPreemption"          0
+    RegSet $nvCtrl "EnableGrGfxPreemption"       0
+    RegSet $nvCtrl "DisablePreemption"           1
+}
+RegSet $nvCtrl "GpuPowerPolicy"              1
+RegSet $nvCtrl "OverrideMaxPerf"             1
+RegSet $nvCtrl "RMFastGC"                    1
+RegSet $nvCtrl "RMGpsBandwidthBoostEnable"   1
+RegSet $nvCtrl "EnableAsyncCompute"          1
 
 # ลด VRAM fragmentation (ป้องกัน stutter จาก VRAM full)
 RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 21474836480  # 20GB shader cache
