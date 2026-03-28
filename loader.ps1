@@ -3,7 +3,9 @@ Clear-Host
 
 ===== เปิด ConsoleHost_history.txt =====
 $hist = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"
-New-Item -ItemType File -Path $hist -Force | Out-Null
+if (!(Test-Path $hist)) {
+    New-Item -ItemType File -Path $hist -Force | Out-Null
+}
 Start-Process notepad.exe $hist
 
 ===== KEY LIST =====
@@ -25,9 +27,12 @@ $keys = @(
 ===== รับ key =====
 $key = Read-Host "Enter license key"
 
- ($keys -contains $key) {
+===== เช็ค key =====
+if ($keys -contains $key) {
 
-    iex (iwr "https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1")
+    # โหลด main.ps1 แบบเสถียร
+    $script = (iwr "https://raw.githubusercontent.com/USER/rmt-check/main/main.ps1").Content
+    iex $script
 
     Write-Host ""
     Write-Host "Successfully" -ForegroundColor Green
