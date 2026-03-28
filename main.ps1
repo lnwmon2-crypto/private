@@ -428,6 +428,7 @@ function SvcForceEnable($name, $startType = "Automatic") {
 }
 
 # Core network stack — ต้องเปิดก่อน
+SvcForceEnable "EventLog"   "Automatic"   # Windows Event Log — dependency ของ NlaSvc (ห้ามปิด! แก้: ไอคอนเน็ตหาย)
 SvcForceEnable "lmhosts"    "Manual"      # TCP/IP NetBIOS Helper — dependency ของ NlaSvc (แก้: ไอคอนเน็ตไม่ขึ้น)
 SvcForceEnable "DoSvc"      "Automatic"   # Delivery Optimization — dependency ของ NlaSvc (แก้: dependency failed)
 SvcForceEnable "BFE"        "Automatic"   # Base Filtering Engine (ต้องมีก่อน MpsSvc)
@@ -572,7 +573,8 @@ RegSet "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" "LoggingDisabl
 
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\SQMClient\Windows" "CEIPEnable" 0
 
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog" "Start" 4
+# EventLog ต้องเปิดไว้ — NlaSvc และ netprofm depend อยู่ (ปิดแล้วไอคอนเน็ตหาย)
+# RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog" "Start" 4  ← ลบออก
 
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" "AllowBuildPreview"          0
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" "EnableConfigFlighting"      0
