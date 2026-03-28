@@ -1351,6 +1351,210 @@ RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "Disa
 Unregister-ScheduledTask -TaskName "FiveM Cache Clean" -Confirm:$false -EA SilentlyContinue | Out-Null
 
 # ============================================================
+# [R] NETWORK STACK ULTRA — UDP / IPv4 ขั้นสูงสุด (FiveM-Specific)
+# ============================================================
+
+# --- R1: IPv4 Interface Metric ต่ำสุด (ลด routing overhead) ---
+Get-NetIPInterface -AddressFamily IPv4 -EA SilentlyContinue | ForEach-Object {
+    Set-NetIPInterface -InterfaceIndex $_.InterfaceIndex -InterfaceMetric 1 -EA SilentlyContinue
+}
+
+# --- R2: TCP Auto-Tuning Level = Normal (ดีที่สุดสำหรับ gaming) ---
+netsh int tcp set global autotuninglevel=normal        2>$null | Out-Null
+netsh int tcp set global fastopen=enabled              2>$null | Out-Null
+netsh int tcp set global fastopenfallback=enabled      2>$null | Out-Null
+netsh int tcp set global hystart=disabled              2>$null | Out-Null
+netsh int tcp set global pacingprofile=off             2>$null | Out-Null
+netsh int tcp set global ecncapability=disabled        2>$null | Out-Null
+netsh int tcp set global timestamps=disabled           2>$null | Out-Null
+netsh int tcp set global rsc=disabled                  2>$null | Out-Null
+netsh int tcp set global initialRto=1500               2>$null | Out-Null
+netsh int tcp set global maxsynretransmissions=2       2>$null | Out-Null
+netsh int tcp set global nonsackrttresiliency=disabled 2>$null | Out-Null
+netsh int tcp set global dca=enabled                   2>$null | Out-Null
+
+# --- R3: UDP Buffer สำหรับ FiveM โดยเฉพาะ ---
+$afd = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afd "DefaultReceiveWindow"            1048576   # 1MB
+RegSet $afd "DefaultSendWindow"               1048576   # 1MB
+RegSet $afd "FastSendDatagramThreshold"       65536
+RegSet $afd "MaxFastTransmit"                 64
+RegSet $afd "NonBlockingSendSpecialBuffering"  1
+RegSet $afd "AlwaysSendIfPossible"            1
+RegSet $afd "TransmitWorker"                  1
+RegSet $afd "BufferMultiplier"                8         # × 8 จากเดิม 4
+RegSet $afd "PriorityBoost"                   1
+RegSet $afd "DisableAddressSharing"           1
+RegSet $afd "DoNotHoldNicBuffers"             1
+RegSet $afd "IrpStackSize"                    50
+RegSet $afd "EnableDynamicBacklog"            1
+RegSet $afd "MinimumDynamicBacklog"           20
+RegSet $afd "MaximumDynamicBacklog"           65535
+RegSet $afd "DynamicBacklogGrowthDelta"       10
+RegSet $afd "MaxBufferredReceiveBytes"        67108864  # 64MB
+RegSet $afd "MaxBufferredSendBytes"           67108864  # 64MB
+RegSet $afd "TransmitIoLength"                131072    # 128KB chunks
+
+# --- R4: IRPStackSize สำหรับ FiveM file access ---
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" "IRPStackSize"   50
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" "MaxWorkItems"   8192
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" "MaxMpxCt"       2048
+
+# --- R5: IPv4 Source Routing & Security Headers ---
+$tcpParams = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+RegSet $tcpParams "DisableIPSourceRouting"    2     # ลด attack surface
+RegSet $tcpParams "EnableDeadGWDetect"        0     # ไม่ detect dead GW ลดเวลา
+RegSet $tcpParams "EnableICMPRedirect"        0     # ปิด ICMP redirect
+RegSet $tcpParams "IPEnableRouter"            0
+RegSet $tcpParams "TcpMaxDataRetransmissions" 3
+RegSet $tcpParams "TcpMaxConnectRetransmissions" 2
+RegSet $tcpParams "PerformRouterDiscovery"    0     # ไม่ broadcast discover
+RegSet $tcpParams "ArpCacheLife"              60    # ARP cache อยู่ 60s แทน default
+RegSet $tcpParams "ArpCacheMinReferencedLife" 10
+
+# --- R6: QoS Policy ครอบคลุม FiveM ทุก executable ---
+$qosBase = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS"
+@("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe") | ForEach-Object {
+    $appName = $_
+    $qosEntry = "$qosBase\$appName-Gaming"
+    If (-not (Test-Path $qosEntry)) { New-Item $qosEntry -Force | Out-Null }
+    Set-ItemProperty $qosEntry "Version"          "1.0"     -Type String -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "Application Name" $appName  -Type String -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "DSCP Value"       46        -Type DWord  -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "Local Port"       "*"       -Type String -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "Remote Port"      "*"       -Type String -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "Protocol"         "*"       -Type String -EA SilentlyContinue
+    Set-ItemProperty $qosEntry "Throttle Rate"    "-1"      -Type String -EA SilentlyContinue
+}
+
+# --- R7: Network Adapter RSS + Interrupt ขั้นสุด ---
+$cpuCores = [int](Get-CimInstance Win32_Processor | Select-Object -First 1).NumberOfLogicalProcessors
+Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
+    $n = $_.Name
+    # RSS ใช้ทุก core ที่มี (max 8)
+    Set-NetAdapterRss -Name $n -Enabled $true -NumberOfReceiveQueues ([Math]::Min($cpuCores, 8)) -EA SilentlyContinue
+    # RSS Base Processor ให้ใช้ core 0-3
+    Set-NetAdapterRss -Name $n -BaseProcessorNumber 0 -MaxProcessors ([Math]::Min($cpuCores, 4)) -EA SilentlyContinue
+    # ปิด Selective Suspend บน NIC
+    Disable-NetAdapterPowerManagement -Name $n -EA SilentlyContinue
+    # ตั้ง Receive Buffers สูงสุด
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Receive Buffers"  -DisplayValue "4096" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Transmit Buffers" -DisplayValue "4096" -EA SilentlyContinue
+}
+
+# --- R8: Winsock Provider Settings ---
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MaxSockAddrLength"     128
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MinSockAddrLength"     16
+
+# ============================================================
+# [S] FIVEM PROCESS ULTRA — CPU / RAM / I-O สุดขีด
+# ============================================================
+
+# --- S1: Large Pages สำหรับ FiveM (ลด TLB miss) ---
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargePageMinimum"             0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargePageDrivers"             "*" "String"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"       1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "IoPageLockLimit"              805306368  # 768MB
+
+# --- S2: Win32PrioritySeparation ที่แม่นยำที่สุดสำหรับ Gaming ---
+# 0x38 = foreground ได้ quantum ยาวสูงสุด + boost สูงสุด
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 0x26
+
+# --- S3: CPU C-State & P-State ปิดสำหรับ Gaming ---
+# Intel
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\intelppm\Parameters"  "MaxIdleImplementors" 0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\intelppm\Parameters"  "MinThrottlePercent"  100
+# AMD
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\amdppm\Parameters"    "MaxIdleImplementors" 0
+# ปิด C-state ทาง Capabilities
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Processor"             "Capabilities"        0x0007e066
+
+# --- S4: System Responsiveness สูงสุด ---
+$sysProf = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+RegSet $sysProf "SystemResponsiveness"    0
+RegSet $sysProf "NetworkThrottlingIndex"  0xffffffff
+RegSet $sysProf "NoLazyMode"             1
+RegSet $sysProf "AlwaysOn"               1
+
+# Tasks ทุก profile เป็น High
+@("Games","FiveM","GTA5","GTA5_Enhanced","Pro Audio","Window Manager","DisplayPostProcessing") | ForEach-Object {
+    $t = "$sysProf\Tasks\$_"
+    RegSet $t "Affinity"             0
+    RegSet $t "Background Only"      "False"  "String"
+    RegSet $t "Clock Rate"           10000
+    RegSet $t "GPU Priority"         8
+    RegSet $t "Priority"             6
+    RegSet $t "Scheduling Category"  "High"   "String"
+    RegSet $t "SFIO Priority"        "High"   "String"
+}
+
+# --- S5: FiveM IFEO เพิ่มขึ้น ครอบคลุม process ทั้งหมด ---
+$ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+@(
+    "FiveM.exe","FiveM_b3095.exe","GTA5.exe","GTA5_Enhanced.exe",
+    "CitizenFX_SubProcess.exe","FiveM_ChromeBrowser.exe",
+    "fivem_server.exe","ROSLauncher.exe","SocialClubHelper.exe",
+    "GTAVLauncher.exe","PlayGTAV.exe"
+) | ForEach-Object {
+    $p = "$ifeo\$_\PerfOptions"
+    RegSet $p "CpuPriorityClass"   3
+    RegSet $p "IoPriority"         3
+    RegSet $p "PagePriority"       5
+    RegSet $p "PowerThrottlingOff" 1
+}
+
+# --- S6: CitizenFX ConVars ครบสมบูรณ์ ---
+$cfx = "HKCU:\SOFTWARE\CitizenFX"
+RegSet $cfx "net_maxPackets"              "128"   "String"
+RegSet $cfx "net_showCondition"           "0"     "String"
+RegSet $cfx "game_enableFPSLimit"         "0"     "String"
+RegSet $cfx "game_enforcegameencryption"  "0"     "String"
+RegSet $cfx "cl_preferIPv6"              "0"     "String"
+RegSet $cfx "cl_drawFps"                  "0"     "String"
+RegSet $cfx "net_statsFile"               ""      "String"
+RegSet $cfx "cl_disableAlternateSkins"    "1"     "String"
+RegSet $cfx "rage_enablePageHeap"         "0"     "String"   # ปิด page heap debugging
+RegSet $cfx "sv_enforceGameBuild"         "0"     "String"
+
+$cfxNet = "HKCU:\SOFTWARE\CitizenFX\Network"
+RegSet $cfxNet "netTimeout"                    "20000"      "String"
+RegSet $cfxNet "netFrameTime"                  "0"          "String"
+RegSet $cfxNet "netRateThreshold"              "0"          "String"
+RegSet $cfxNet "netReliableRetransmitTimeout"  "600"        "String"
+RegSet $cfxNet "UseNewFrameScheduler"          "1"          "String"
+RegSet $cfxNet "netPacketLossThreshold"        "0"          "String"
+RegSet $cfxNet "netBandwidthIn"               "104857600"   "String"
+RegSet $cfxNet "netBandwidthOut"              "52428800"    "String"
+RegSet $cfxNet "netRoutingTunnelTimeout"       "30000"      "String"
+
+# ============================================================
+# [T] KERNEL TIMER & DPC LATENCY ขั้นสุด
+# ============================================================
+
+# --- T1: Timer Resolution 0.5ms บังคับ ---
+bcdedit /set useplatformtick yes    2>$null | Out-Null
+bcdedit /set disabledynamictick yes 2>$null | Out-Null
+bcdedit /deletevalue useplatformclock 2>$null | Out-Null
+bcdedit /set tscsyncpolicy Enhanced 2>$null | Out-Null
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MaximumSharedReadyQueueSize"   128
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "ThreadDpcEnable"              0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "DisableExceptionChainValidation" 1
+
+# --- T2: DPC Watchdog ปิด (ลด interrupt latency) ---
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "DpcWatchdogProfileOffset"     0
+
+# --- T3: HPET ปิดใน Device Manager (ใช้ TSC แทน) ---
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\ACPI" -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -like "PNP0103*" } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            Set-ItemProperty "$($_.PSPath)" "ConfigFlags" 1 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+# ============================================================
 # [O] APPLY FINAL — Flush DNS + Refresh Policy + Network Reset
 # ============================================================
 
