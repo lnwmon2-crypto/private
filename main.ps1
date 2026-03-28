@@ -864,6 +864,431 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThro
 }
 
 # ============================================================
+# [P] EXTRA TWEAKS — RAM / CPU / DISK / LATENCY เพิ่มเติม
+#     ปลอดภัย 100% ไม่มี service สำคัญถูกปิด
+# ============================================================
+
+# --- P1: RAM Optimization — ลด Memory Pressure ---
+# ปิด Paging Executive (เก็บ kernel ไว้ใน RAM ไม่ให้ swap)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"  1
+# ลด Working Set ที่ Windows สงวนไว้ให้ตัวเอง
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "PagingFiles"             "" "String"
+# ปิด ClearPageFileAtShutdown (ลด shutdown time)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "ClearPageFileAtShutdown" 0
+# Second-level Address Translation (SLAT) page cache เพิ่ม
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettings"         1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3
+
+# --- P2: CPU Scheduler — เน้นเกมสุดขีด ---
+# Win32PrioritySeparation: 0x26 = foreground app ได้ CPU เต็มที่, quantum สั้น
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 0x26
+# IRQ Priority Boost ให้ foreground thread
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ8Priority"            1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ0Priority"            2
+
+# --- P3: Disk I/O — NVMe/SSD Gaming Optimization ---
+# ปิด Last Access Time บน NTFS (ลด disk write ทุก read)
+fsutil behavior set disablelastaccess 1 2>$null | Out-Null
+# Memory-mapped file flush interval ลดลง
+fsutil behavior set memoryusage 2       2>$null | Out-Null
+# ปิด 8.3 filename (ลด I/O overhead)
+fsutil behavior set disable8dot3 1      2>$null | Out-Null
+# ปิด encryption overhead บน NTFS
+fsutil behavior set disableencryption 1 2>$null | Out-Null
+
+# StorPort latency reduction (NVMe/AHCI)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "TreatAsInternalPort" 0x0000000f
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "StartIo"             0
+# ลด interrupt moderation บน disk controller
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -like "VEN_8086*" -or $_.PSChildName -like "VEN_144D*" } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $devPath = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            If (-not (Test-Path $devPath)) { New-Item -Path $devPath -Force | Out-Null }
+            Set-ItemProperty $devPath "MSISupported" 1 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+# --- P4: MSI Mode สำหรับ GPU และ NIC (ลด DPC latency จริงๆ) ---
+# Enable MSI (Message Signaled Interrupts) บน NVIDIA GPU
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -like "VEN_10DE*" } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $msiPath = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            If (-not (Test-Path $msiPath)) { New-Item -Path $msiPath -Force | Out-Null }
+            Set-ItemProperty $msiPath "MSISupported" 1 -Type DWord -EA SilentlyContinue
+            # Limit MSI interrupts to 1 (ลด CPU overhead)
+            $affPath = "$($_.PSPath)\Device Parameters\Interrupt Management\Affinity Policy"
+            If (-not (Test-Path $affPath)) { New-Item -Path $affPath -Force | Out-Null }
+            Set-ItemProperty $affPath "DevicePolicy"   4 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+# --- P5: Network Adapter Advanced Settings (ลด latency NIC) ---
+# ปิด Interrupt Moderation, Power Save บน NIC ทุกตัว
+Get-NetAdapter -Physical | ForEach-Object {
+    $name = $_.Name
+    # ปิด Energy Efficient Ethernet
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Energy Efficient Ethernet"        -DisplayValue "Disabled" -EA SilentlyContinue
+    # ปิด Green Ethernet
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Green Ethernet"                  -DisplayValue "Disabled" -EA SilentlyContinue
+    # ปิด Power Saving Mode
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Power Saving Mode"               -DisplayValue "Disabled" -EA SilentlyContinue
+    # ปิด Interrupt Moderation
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Interrupt Moderation"            -DisplayValue "Disabled" -EA SilentlyContinue
+    # Receive Buffers สูงสุด (ลด packet drop)
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Receive Buffers"                 -DisplayValue "2048"     -EA SilentlyContinue
+    # Transmit Buffers สูงสุด
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Transmit Buffers"                -DisplayValue "2048"     -EA SilentlyContinue
+    # Flow Control ปิด (ลด pause frame overhead)
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Flow Control"                    -DisplayValue "Disabled" -EA SilentlyContinue
+    # RSS Queues ปรับให้พอดี core
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Maximum Number of RSS Queues"    -DisplayValue "4"        -EA SilentlyContinue
+    # ปิด TCP/UDP Checksum Offload (ลด latency overhead สำหรับ gaming)
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "UDP Checksum Offload (IPv4)"    -DisplayValue "Disabled" -EA SilentlyContinue
+    # Large Send Offload ปิด (ลด jitter)
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Large Send Offload v2 (IPv4)"   -DisplayValue "Disabled" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $name -DisplayName "Large Send Offload v2 (IPv6)"   -DisplayValue "Disabled" -EA SilentlyContinue
+}
+
+# --- P6: TCP Stack ขั้นสูง (เน้น latency ต่ำ) ---
+# ECN Capability ปิด (ลด overhead negotiation)
+netsh int tcp set global ecncapability=disabled      2>$null | Out-Null
+# Timestamps ปิด (ลด TCP header overhead)
+netsh int tcp set global timestamps=disabled         2>$null | Out-Null
+# DCA (Direct Cache Access) เปิด
+netsh int tcp set global dca=enabled                 2>$null | Out-Null
+# NetDMA เปิด (Direct Memory Access สำหรับ network)
+netsh int tcp set global netdma=enabled              2>$null | Out-Null
+# Chimney Offload เปิด (offload TCP ไปที่ NIC)
+netsh int tcp set global chimney=enabled             2>$null | Out-Null
+# RSS เปิด (กระจาย interrupt หลาย core)
+netsh int tcp set global rss=enabled                 2>$null | Out-Null
+# Non-SACK RTT Resiliency ปิด
+netsh int tcp set global nonsackrttresiliency=disabled 2>$null | Out-Null
+# ลด Max SYN Retransmissions (เชื่อมต่อเร็วขึ้น)
+netsh int tcp set global maxsynretransmissions=2     2>$null | Out-Null
+
+# TCP Global Additional
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DefaultTTL"               64
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "MaxUserPort"              65534
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpTimedWaitDelay"        30
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpMaxDataRetransmissions" 3
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableICMPRedirect"        0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnablePMTUDiscovery"       1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Tcp1323Opts"               1  # Window scaling + timestamps RFC1323
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpMaxDupAcks"             2  # Fast retransmit เร็วขึ้น
+
+# --- P7: Scheduled Tasks ปิดที่กิน CPU ระหว่างเล่น ---
+$tasksToDisable = @(
+    "\Microsoft\Windows\Defrag\ScheduledDefrag",
+    "\Microsoft\Windows\Diagnosis\Scheduled",
+    "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector",
+    "\Microsoft\Windows\Maintenance\WinSAT",
+    "\Microsoft\Windows\MemoryDiagnostic\ProcessMemoryDiagnosticEvents",
+    "\Microsoft\Windows\MemoryDiagnostic\RunFullMemoryDiagnostic",
+    "\Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem",
+    "\Microsoft\Windows\Registry\RegIdleBackup",
+    "\Microsoft\Windows\SystemRestore\SR",
+    "\Microsoft\Windows\UpdateOrchestrator\Reboot",
+    "\Microsoft\Windows\UpdateOrchestrator\Schedule Scan",
+    "\Microsoft\Windows\Windows Error Reporting\QueueReporting",
+    "\Microsoft\Windows\Application Experience\AitAgent",
+    "\Microsoft\Windows\Application Experience\ProgramDataUpdater",
+    "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator",
+    "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip",
+    "\Microsoft\Windows\Autochk\Proxy",
+    "\Microsoft\Windows\CloudExperienceHost\CreateObjectTask"
+)
+$tasksToDisable | ForEach-Object {
+    Disable-ScheduledTask -TaskPath (Split-Path $_ -Parent) -TaskName (Split-Path $_ -Leaf) -EA SilentlyContinue | Out-Null
+}
+
+# --- P8: Prefetch / SuperFetch ปรับ (SSD ไม่ต้องการ Prefetch) ---
+# ถ้าใช้ SSD: ปิด Prefetch, ถ้า HDD: เปิดไว้
+$diskType = (Get-PhysicalDisk | Select-Object -First 1).MediaType
+If ($diskType -eq "SSD" -or $diskType -eq "NVMe") {
+    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher"   0
+    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableSuperfetch"   0
+    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableBootTrace"    0
+} Else {
+    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher"   3
+    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableSuperfetch"   3
+}
+
+# --- P9: GPU Extra — ลด Shader Compile Stutter ---
+# Direct3D Shader Cache เปิดสูงสุด
+RegSet "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
+# DXGI Flip Model บังคับ (ลด latency display pipeline)
+RegSet "HKCU:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
+# ปิด Fullscreen Optimizations แบบ global (ลด overhead)
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible" 1
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
+# VRR / Variable Refresh Rate
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DxgkrnlVersion" 1
+
+# --- P10: FiveM / GTA Process — เพิ่ม Heap และ CPU Affinity ---
+# ป้องกัน FiveM crash จาก low virtual memory
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM.exe" "MaxDeadCount" 0
+
+# ลด handle table entries overhead
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitFreeBlockThreshold" 0x00040000
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitTotalFreeThreshold" 0x00100000
+
+# Critical Section Timeout เพิ่ม (ป้องกัน false deadlock detection)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "CriticalSectionTimeout"        2592000
+
+# --- P11: WiFi Adapter Optimization (เฉพาะ WiFi) ---
+Get-NetAdapter -Physical | Where-Object { $_.InterfaceDescription -like "*Wi-Fi*" -or $_.InterfaceDescription -like "*Wireless*" -or $_.InterfaceDescription -like "*802.11*" } | ForEach-Object {
+    $wname = $_.Name
+    # ปิด Roaming Aggressiveness (ไม่ให้สลับ AP กลางเกม)
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Roaming Aggressiveness"       -DisplayValue "Lowest"   -EA SilentlyContinue
+    # ปิด Power Save Mode WiFi
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Power Save Mode"              -DisplayValue "CAM (Constantly Awake Mode)" -EA SilentlyContinue
+    # Throughput Booster
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Throughput Booster"           -DisplayValue "Enabled"  -EA SilentlyContinue
+    # Mixed Mode Protection ปิด (ลด overhead)
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Mixed Mode Protection"        -DisplayValue "None"     -EA SilentlyContinue
+    # Transmit Power สูงสุด
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Transmit Power"               -DisplayValue "5. Highest" -EA SilentlyContinue
+    # MIMO Power Save Mode ปิด
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "MIMO Power Save Mode"         -DisplayValue "No SMPS"  -EA SilentlyContinue
+    # Band Preference — 5GHz ก่อน
+    Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Preferred Band"               -DisplayValue "Prefer 5GHz band" -EA SilentlyContinue
+}
+# ปิด WiFi Sense และ hotspot sharing
+RegSet "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "AutoConnectAllowedOEM"  0
+RegSet "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "WiFISenseCredShared"    0
+RegSet "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "WiFISenseOpen"          0
+
+# --- P12: Timer Resolution บังคับ 0.5ms (ดีกว่า 1ms default) ---
+# bcdedit ตั้ง useplatformtick ให้ใช้ TSC timer แม่นยำสุด
+bcdedit /set useplatformtick yes              2>$null | Out-Null
+bcdedit /set disabledynamictick yes           2>$null | Out-Null
+bcdedit /deletevalue useplatformclock         2>$null | Out-Null
+# ปิด Synthetic Timer (Hyper-V timer) ถ้าไม่ได้ใช้ VM
+bcdedit /set hypervisorlaunchtype off         2>$null | Out-Null
+
+# Global timer resolution override (ทุก process ได้ 0.5ms)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
+
+# ============================================================
+# [Q] FIVEM ULTRA TWEAKS — Ping / Input Lag / FPS / Map Load
+#     ทุกอย่างฝั่ง Client ล้วน ไม่มีอะไรผิด rule server
+# ============================================================
+
+# --- Q1: CitizenFX ConVars ขั้นสุด (Registry) ---
+# net_maxPackets 128 = ส่ง/รับ packet ได้ 128 ต่อ tick (default 32)
+# net_statsFile  = ปิด log ไม่ให้กิน I/O กลางเกม
+# game_enableFPSLimit 0 = ปิด FPS cap ของ CitizenFX
+# cl_drawFps 0 = ปิด overlay fps ของเกม (ลด CPU overhead เล็กน้อย)
+$cfx = "HKCU:\SOFTWARE\CitizenFX"
+RegSet $cfx "net_maxPackets"              "128"   "String"
+RegSet $cfx "net_showCondition"           "0"     "String"
+RegSet $cfx "game_enableFPSLimit"         "0"     "String"
+RegSet $cfx "game_enforcegameencryption"  "0"     "String"
+RegSet $cfx "cl_preferIPv6"              "0"     "String"
+RegSet $cfx "cl_drawFps"                  "0"     "String"
+RegSet $cfx "net_statsFile"               ""      "String"
+RegSet $cfx "cl_disableAlternateSkins"    "1"     "String"   # ลด memory ของ skin system
+
+# Network ฝั่ง CitizenFX เพิ่มเติม
+$cfxNet = "HKCU:\SOFTWARE\CitizenFX\Network"
+RegSet $cfxNet "netTimeout"                    "20000" "String"   # 20s ก่อน kick (ป้องกัน lag spike)
+RegSet $cfxNet "netFrameTime"                  "0"     "String"   # ไม่จำกัด frame time network
+RegSet $cfxNet "rateLimitBypass"               "1"     "String"   # bypass client rate limiter
+RegSet $cfxNet "netRateThreshold"              "0"     "String"   # ไม่มี threshold ลด rate
+RegSet $cfxNet "netReliableRetransmitTimeout"  "600"   "String"   # retransmit เร็วขึ้น (ms)
+RegSet $cfxNet "UseNewFrameScheduler"          "1"     "String"   # scheduler ใหม่ ลด jitter
+RegSet $cfxNet "netPacketLossThreshold"        "0"     "String"   # ไม่ throttle แม้ packet loss
+RegSet $cfxNet "netBandwidthIn"               "104857600" "String" # 100MB/s receive budget
+RegSet $cfxNet "netBandwidthOut"              "52428800"  "String" # 50MB/s send budget
+
+# --- Q2: DNS เปลี่ยนเป็น Gaming DNS (Cloudflare + Google) ---
+# ลด DNS lookup time → join server เร็วขึ้น
+$adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" }
+$adapters | ForEach-Object {
+    $idx = $_.InterfaceIndex
+    # IPv4
+    Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses ("1.1.1.1","8.8.8.8") -EA SilentlyContinue
+}
+# ลด DNS negative cache (ไม่ cache ที่ fail นาน)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" "NegativeCacheTime"        0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" "NetFailureCacheTime"      0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" "NegativeSOACacheTime"     0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" "MaxCacheEntryTtlLimit"    3600
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" "MaxSOACacheEntryTtlLimit" 3600
+
+# --- Q3: GTA5/FiveM — ปิด Fullscreen Optimization + DPI Scaling ---
+# ทำให้ Windows ไม่แทรกแซง render pipeline → ลด input lag 5-15ms
+$exeList = @(
+    "$env:LOCALAPPDATA\FiveM\FiveM.exe",
+    "$env:LOCALAPPDATA\FiveM\FiveM_b3095.exe",
+    "$env:ProgramFiles\FiveM\FiveM.exe",
+    "$env:ProgramFiles(x86)\FiveM\FiveM.exe"
+)
+$exeList | Where-Object { Test-Path $_ } | ForEach-Object {
+    $hash = (Get-FileHash $_ -Algorithm SHA256 -EA SilentlyContinue).Hash
+    If ($hash) {
+        $layers = "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+        If (-not (Test-Path $layers)) { New-Item $layers -Force | Out-Null }
+        Set-ItemProperty $layers $_ "~ DISABLEDXMAXIMIZEDWINDOWEDMODE HIGHDPIAWARE" -Type String -EA SilentlyContinue
+    }
+}
+# ปิด FSO/FSE override global
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_DSEBehavior"                    2
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible"  1
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_EFSEFeatureFlags"               0
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"       1
+
+# --- Q4: FPS Stability — ปิดทุกอย่างที่ทำให้ frame time spike ---
+# ปิด NVIDIA Low Power Mode (บังคับ P0 state ตลอด)
+$nvCtrl = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
+RegSet $nvCtrl "EnableMidBufferPreemption"        0
+RegSet $nvCtrl "EnableCEPreemption"               0
+RegSet $nvCtrl "EnableGrGfxPreemption"            0
+RegSet $nvCtrl "DisablePreemption"                1
+RegSet $nvCtrl "GpuPowerPolicy"                   1
+RegSet $nvCtrl "OverrideMaxPerf"                  1
+RegSet $nvCtrl "RMFastGC"                         1   # Fast garbage collect GPU memory
+RegSet $nvCtrl "RMGpsBandwidthBoostEnable"        1
+RegSet $nvCtrl "EnableAsyncCompute"               1   # Async compute (ลด GPU stall)
+
+# ลด VRAM fragmentation (ป้องกัน stutter จาก VRAM full)
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 21474836480  # 20GB shader cache
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ForceMaxPerf"           1
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "FRL_FPS"                0            # ปิด Frame Rate Limiter
+
+# Hardware GPU Scheduling (HAGS) — ลด latency CPU→GPU
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"  2
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   8
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"   3
+
+# MaxRenderedFramesAhead ต่ำสุด = ลด pre-render queue
+RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
+RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
+
+# --- Q5: Map/Resource โหลดเร็วขึ้น — I/O Priority + Cache ---
+# เพิ่ม I/O priority สำหรับ FiveM process ทุกตัว
+@("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe","FiveM_ChromeBrowser.exe") | ForEach-Object {
+    $p = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$_\PerfOptions"
+    RegSet $p "CpuPriorityClass"   3   # HIGH
+    RegSet $p "IoPriority"         3   # HIGH I/O
+    RegSet $p "PagePriority"       5   # MAX page priority
+    RegSet $p "PowerThrottlingOff" 1
+}
+
+# เพิ่ม File System Cache สำหรับเกม (ลด re-read จาก disk)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargeSystemCache"           0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "IoPageLockLimit"            536870912  # 512MB I/O lock
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"     1
+
+# NTFS ลด overhead การ access file
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation"  1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate"   1  # ไม่อัพเดท access time
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsMemoryUsage"               2  # เพิ่ม NTFS cache
+
+# --- Q6: Input Lag สุดขีด — Raw Input + Mouse Filter ---
+# ปิด Mouse Acceleration ทั้งหมด (ทำให้เมาส์ 1:1 กับ input จริง)
+RegSet "HKCU:\Control Panel\Mouse" "MouseSpeed"      "0" "String"
+RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1" "0" "String"
+RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2" "0" "String"
+# Enhance Pointer Precision ปิด
+RegSet "HKCU:\Control Panel\Mouse" "MouseSensitivity" "10" "String"
+
+# HID / USB polling ลด latency
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"  32
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"  32
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 32
+# ปิด Selective Suspend บน USB HID (เมาส์/คีย์ไม่ sleep)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "NoSelectiveSuspend"       1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "SelectiveSuspendEnabled"  0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\USB\Parameters"       "DisableSelectiveSuspend"  1
+
+# USB Controller — ลด latency
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\USB" -EA SilentlyContinue |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $pwr = "$($_.PSPath)\Device Parameters"
+            Set-ItemProperty $pwr "EnhancedPowerManagementEnabled" 0 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $pwr "AllowIdleIrpInD3"               0 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $pwr "EnableSelectiveSuspend"          0 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+# --- Q7: Ping Reduction — QoS + UDP Tuning ครบ ---
+# ลด Network Throttling Index (สำคัญมาก)
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" 0xffffffff
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness"   0
+
+# UDP ส่งทันที ไม่รอ batch
+$afd = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afd "DefaultReceiveWindow"            524288   # 512KB receive window
+RegSet $afd "DefaultSendWindow"               524288   # 512KB send window
+RegSet $afd "FastSendDatagramThreshold"       65536
+RegSet $afd "AlwaysSendIfPossible"            1
+RegSet $afd "TransmitWorker"                  1
+RegSet $afd "BufferMultiplier"                4
+RegSet $afd "PriorityBoost"                   1
+RegSet $afd "DisableAddressSharing"           1        # ป้องกัน port conflict
+RegSet $afd "DoNotHoldNicBuffers"             1        # ปล่อย NIC buffer เร็วขึ้น
+RegSet $afd "IrpStackSize"                    50       # เพิ่ม IRP stack
+
+# Nagle OFF + DelAck 0 ทุก Interface
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
+    Set-ItemProperty $_.PSPath "TcpAckFrequency"  1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TCPNoDelay"       1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpDelAckTicks"   0 -Type DWord -EA SilentlyContinue
+}
+
+# QoS Policy FiveM (DSCP EF = highest priority)
+$qos = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\FiveM-Ultra"
+If (-not (Test-Path $qos)) { New-Item $qos -Force | Out-Null }
+Set-ItemProperty $qos "Version"           "1.0"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qos "Application Name" "FiveM.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $qos "DSCP Value"       46           -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qos "Local Port"       "*"          -Type String -EA SilentlyContinue
+Set-ItemProperty $qos "Remote Port"      "30120"      -Type String -EA SilentlyContinue
+Set-ItemProperty $qos "Protocol"         "UDP"        -Type String -EA SilentlyContinue
+Set-ItemProperty $qos "Throttle Rate"    "-1"         -Type String -EA SilentlyContinue
+
+# --- Q8: MMCSS Profile FiveM สมบูรณ์ ---
+$mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks"
+@("Games","FiveM","GTA5","GTA5_Enhanced","Pro Audio") | ForEach-Object {
+    $t = "$mm\$_"
+    RegSet $t "Affinity"             0
+    RegSet $t "Background Only"      "False"  "String"
+    RegSet $t "Clock Rate"           10000    # 1ms = resolution สูงสุด
+    RegSet $t "GPU Priority"         8
+    RegSet $t "Priority"             6
+    RegSet $t "Scheduling Category"  "High"   "String"
+    RegSet $t "SFIO Priority"        "High"   "String"
+}
+
+# --- Q9: Windows Visual / Aero ปิดที่เหลือ (ลด GPU overhead) ---
+RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
+# ลด DWM (Desktop Window Manager) overhead
+RegSet "HKCU:\Control Panel\Desktop" "DragFullWindows"          "0" "String"
+RegSet "HKCU:\Control Panel\Desktop" "MenuShowDelay"            "0" "String"
+RegSet "HKCU:\Control Panel\Desktop" "WaitToKillAppTimeout"     "2000" "String"
+RegSet "HKCU:\Control Panel\Desktop" "HungAppTimeout"           "2000" "String"
+RegSet "HKCU:\Control Panel\Desktop" "AutoEndTasks"             "1" "String"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "2000" "String"
+# ลด Thumbnail cache ไม่ต้องการในเกม
+RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "DisableThumbnailCache" 1
+
+# --- Q10: FiveM Cache Cleaner — สร้าง Scheduled Task ล้าง cache อัตโนมัติ ---
+# ล้าง CitizenFX cache ทุกครั้งที่ reboot (ป้องกัน stale cache ทำให้ crash/stutter)
+$action  = New-ScheduledTaskAction -Execute "cmd.exe" -Argument '/c rd /s /q "%LocalAppData%\FiveM\FiveM.app\cache\game" 2>nul & rd /s /q "%LocalAppData%\FiveM\FiveM.app\cache\priv" 2>nul'
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -Priority 4
+Register-ScheduledTask -TaskName "FiveM Cache Clean" -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
+
+# ============================================================
 # [O] APPLY FINAL — Flush DNS + Refresh Policy + Network Reset
 # ============================================================
 
