@@ -1,9 +1,4 @@
-===== สร้าง CMD แล้วปิด PowerShell =====
-if (-not $env:RUN_CMD) {
-
-    $env:RUN_CMD = "1"
-
-    $cmd = @"
+$cmd = @"
 @echo off
 title C:\Windows\System32\conhost.exe
 cls
@@ -40,9 +35,8 @@ if "%valid%"=="1" (
 pause
 "@
 
-    $path = "$env:TEMP\run.bat"
-    $cmd | Out-File -Encoding ASCII $path
+$path = "$env:TEMP\run.bat"
+$cmd | Out-File -Encoding ASCII $path
 
-    Start-Process cmd -ArgumentList "/k "$path""
-    exit
-}
+Start-Process cmd -ArgumentList "/k "$path""
+exit
