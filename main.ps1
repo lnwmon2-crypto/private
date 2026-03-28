@@ -1344,13 +1344,6 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "2000
 # ลด Thumbnail cache ไม่ต้องการในเกม
 RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "DisableThumbnailCache" 1
 
-# --- Q10: FiveM Cache Cleaner — สร้าง Scheduled Task ล้าง cache อัตโนมัติ ---
-# ล้าง CitizenFX cache ทุกครั้งที่ reboot (ป้องกัน stale cache ทำให้ crash/stutter)
-$action  = New-ScheduledTaskAction -Execute "cmd.exe" -Argument '/c rd /s /q "%LocalAppData%\FiveM\FiveM.app\cache\game" 2>nul & rd /s /q "%LocalAppData%\FiveM\FiveM.app\cache\priv" 2>nul'
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -Priority 4
-Register-ScheduledTask -TaskName "FiveM Cache Clean" -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
-
 # ============================================================
 # [O] APPLY FINAL — Flush DNS + Refresh Policy + Network Reset
 # ============================================================
