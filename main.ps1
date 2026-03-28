@@ -285,51 +285,7 @@ Get-ChildItem $pci -EA SilentlyContinue | ForEach-Object {
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" "DODownloadMode" 0
 SvcKill "DoSvc"
 
-# ============================================================
-# [FIX-NET] คืน Services ที่ทำให้ไอคอนเน็ตหายและปรับเน็ตไม่ได้
-# ============================================================
-# Network List Service — ให้ไอคอนเน็ตแสดงถูกต้อง
-SvcEnable "netprofm"
-# Network Location Awareness — detect network type
-SvcEnable "NlaSvc"
-# Network Connectivity Assistant
-SvcEnable "NcaSvc"  "Manual"
-# WLAN AutoConfig — WiFi icon + settings (ถ้าใช้ WiFi)
-SvcEnable "WlanSvc" "Automatic"
-# Network Setup Service — Network Settings panel
-SvcEnable "NetSetupSvc" "Manual"
-# IP Helper (IPv6 tunnel etc.) — บางระบบต้องการ
-SvcEnable "iphlpsvc" "Automatic"
-# DHCP Client — รับ IP อัตโนมัติ
-SvcEnable "Dhcp" "Automatic"
-# DNS Client
-SvcEnable "Dnscache" "Automatic"
-# Network Connections — แผง Network Connections
-SvcEnable "Netman" "Manual"
-# Windows Connection Manager
-SvcEnable "Wcmsvc" "Automatic"
-# Wired AutoConfig (LAN icon)
-SvcEnable "dot3svc" "Manual"
 
-# ============================================================
-# [FIX-NVIDIA] คืน NVIDIA Services ที่จำเป็น
-# (NvTelemetry ปิดได้ แต่ Display/Container ต้องเปิด)
-# ============================================================
-
-# NvDisplayContainer — NVIDIA Control Panel หลัก
-SvcEnable "NVDisplay.ContainerLocalSystem" "Automatic"
-# NvContainerLocalSystem — NVIDIA overlay, Shadowplay, GeForce Experience
-SvcEnable "NvContainerLocalSystem" "Automatic"
-# NvContainerNetworkService — GeForce Experience network feature
-SvcEnable "NvContainerNetworkService" "Automatic"
-# NVDisplay — หน้า driver display
-SvcEnable "nvlddmkm" "Automatic"
-
-# Coolbits — เปิด OC / Advanced clock controls ใน NVCP
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "Coolbits" 24
-
-# ปิดเฉพาะ Telemetry ตัวเดียว (ไม่ใช่ Container)
-SvcKill "NvTelemetryContainer"
 
 # ============================================================
 # [D] FiveM / CitizenFX DEEP TWEAKS
@@ -459,6 +415,61 @@ Get-PhysicalDisk -EA SilentlyContinue | Set-PhysicalDisk -MediaType SSD -EA Sile
 
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "AllowTelemetry"      0
 RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" "MaxTelemetryAllowed" 0
+
+# ============================================================
+# [FIX-NET] คืน Services ที่จำเป็น — ต้องรันหลัง SERVICES KILL
+# เพื่อให้ dependency order ถูกต้อง ไอคอนเน็ตถึงจะกลับมา
+# ============================================================
+
+function SvcForceEnable($name, $startType = "Automatic") {
+    sc.exe config $name start= auto 2>$null | Out-Null
+    Set-Service  $name -StartupType $startType -EA SilentlyContinue
+    Start-Service $name -EA SilentlyContinue
+}
+
+# Core network stack — ต้องเปิดก่อน
+SvcForceEnable "BFE"        "Automatic"   # Base Filtering Engine (ต้องมีก่อน MpsSvc)
+SvcForceEnable "nsi"        "Automatic"   # Network Store Interface (ต้องมีก่อน NlaSvc)
+SvcForceEnable "Dhcp"       "Automatic"   # DHCP Client
+SvcForceEnable "Dnscache"   "Automatic"   # DNS Client
+SvcForceEnable "iphlpsvc"   "Automatic"   # IP Helper
+SvcForceEnable "netprofm"   "Automatic"   # Network List Service
+SvcForceEnable "NlaSvc"     "Automatic"   # Network Location Awareness
+SvcForceEnable "Netman"     "Manual"      # Network Connections
+SvcForceEnable "Wcmsvc"     "Automatic"   # Windows Connection Manager
+SvcForceEnable "NcaSvc"     "Manual"      # Network Connectivity Assistant
+SvcForceEnable "WlanSvc"    "Automatic"   # WLAN AutoConfig (WiFi icon)
+SvcForceEnable "dot3svc"    "Manual"      # Wired AutoConfig (LAN icon)
+SvcForceEnable "NetSetupSvc" "Manual"     # Network Setup Service
+
+# Restart ตามลำดับ dependency
+Start-Sleep -Milliseconds 500
+Restart-Service nsi      -Force -EA SilentlyContinue
+Start-Sleep -Milliseconds 300
+Restart-Service netprofm -Force -EA SilentlyContinue
+Start-Sleep -Milliseconds 300
+Restart-Service NlaSvc   -Force -EA SilentlyContinue
+Start-Sleep -Milliseconds 300
+Restart-Service Netman   -Force -EA SilentlyContinue
+
+# ============================================================
+# [FIX-NVIDIA] คืน NVIDIA Services — ต้องรันหลัง SERVICES KILL
+# (NvTelemetry ปิดได้ แต่ Display/Container/ShadowPlay ต้องเปิด)
+# ============================================================
+
+# Driver display หลัก — เปิดก่อน
+SvcForceEnable "nvlddmkm"                        "Automatic"
+Start-Sleep -Milliseconds 500
+# NVIDIA Control Panel + GeForce Experience + ShadowPlay/Overlay
+SvcForceEnable "NVDisplay.ContainerLocalSystem"  "Automatic"
+SvcForceEnable "NvContainerLocalSystem"          "Automatic"
+SvcForceEnable "NvContainerNetworkService"       "Automatic"
+
+# Coolbits — เปิด OC / Advanced clock controls ใน NVCP
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "Coolbits" 24
+
+# ปิดเฉพาะ Telemetry ตัวเดียว (ไม่ใช่ Container)
+SvcKill "NvTelemetryContainer"
 
 # ============================================================
 # [I] WINDOWS DEFENDER — ลด impact + Exclude FiveM
@@ -634,7 +645,7 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
 
 # --- X6: MMCSS Boost เพิ่ม — ลด DPC Latency ---
 $sysProf = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-RegSet $sysProf "SystemResponsiveness"   0     # 0 = เน้น Foreground app เต็มที่
+RegSet $sysProf "SystemResponsiveness"   0
 RegSet $sysProf "NetworkThrottlingIndex" 0xffffffff
 RegSet $sysProf "NoLazyMode"             1
 
@@ -700,10 +711,164 @@ RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "DisableD3DDebug"      1
 RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "D3DXShaderDebugLevel" 0
 
 # ============================================================
-# [N] APPLY FINAL — Flush DNS + Refresh Policy
+# [N] FIVEM DEEP TWEAKS — ลด Input Lag / Net Lag ระดับลึกสุด
+#     เฉพาะตัวเกม FiveM — ปลอดภัย ไม่พังระบบ
 # ============================================================
 
-ipconfig /flushdns         2>$null | Out-Null
-ipconfig /registerdns      2>$null | Out-Null
+# --- N1: CitizenFX Network Stack สุดขีด ---
+# net_maxPackets: จำนวน packet สูงสุดต่อ tick (default 32, max 128)
+# เพิ่มให้ส่ง/รับ packet ได้มากขึ้นต่อ frame → ลด packet loss
+RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_maxPackets"             "128"   "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_showCondition"          "0"     "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX"         "game_enforcegameencryption" "0"     "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX"         "cl_preferIPv6"              "0"     "String"
+
+# --- N2: CitizenFX Network Timing ---
+# netTimeout: timeout ก่อน disconnect (ms) — 15000 = 15วิ ป้องกัน kick จาก lag spike
+# netFrameTime: "0" = ไม่จำกัด frame time สำหรับ network processing
+# rateLimitBypass: "1" = bypass rate limiter ของ client
+# netRateThreshold: "0" = ไม่มี threshold ที่จะลด rate
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netTimeout"          "15000" "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netFrameTime"        "0"     "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "rateLimitBypass"     "1"     "String"
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netRateThreshold"    "0"     "String"
+# netReliableRetransmitTimeout: ลด timeout สำหรับ reliable channel retransmit
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netReliableRetransmitTimeout" "800" "String"
+# UseNewFrameScheduler: ใช้ scheduler ใหม่ที่ลด jitter
+RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "UseNewFrameScheduler"         "1"   "String"
+
+# --- N3: GTA V / FiveM Process Priority ขั้นสุด ---
+$ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+@(
+    "FiveM.exe",
+    "FiveM_b3095.exe",
+    "GTA5.exe",
+    "GTA5_Enhanced.exe",
+    "CitizenFX_SubProcess.exe",
+    "FiveM_ChromeBrowser.exe",
+    "fivem_server.exe",
+    "ROSLauncher.exe",
+    "SocialClubHelper.exe"
+) | ForEach-Object {
+    $p = "$ifeo\$_\PerfOptions"
+    RegSet $p "CpuPriorityClass"  3   # High CPU priority
+    RegSet $p "IoPriority"        3   # High I/O priority
+    RegSet $p "PagePriority"      5   # Max page priority
+    RegSet $p "PowerThrottlingOff" 1  # ปิด throttle สำหรับ process นี้
+}
+
+# --- N4: MMCSS Tasks เพิ่ม FiveM/GTA profile ---
+$mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks"
+@("Games","FiveM","GTA5","GTA5_Enhanced") | ForEach-Object {
+    $t = "$mm\$_"
+    RegSet $t "Affinity"            0
+    RegSet $t "Background Only"     "False" "String"
+    RegSet $t "Clock Rate"          10000   # 1ms timer resolution
+    RegSet $t "GPU Priority"        8       # Max GPU priority ใน MMCSS
+    RegSet $t "Priority"            6       # MMCSS thread priority
+    RegSet $t "Scheduling Category" "High"  "String"
+    RegSet $t "SFIO Priority"       "High"  "String"
+}
+
+# --- N5: UDP Socket Tuning เฉพาะ FiveM (UDP-based) ---
+# FiveM ใช้ UDP port 30120 เป็นหลัก
+# เพิ่ม UDP send/receive buffer และลด latency
+$afd3 = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afd3 "FastSendDatagramThreshold"      65536  # ส่ง UDP ขนาดใหญ่โดยไม่ buffer
+RegSet $afd3 "AlwaysSendIfPossible"           1      # ส่งทันทีไม่รอ batch
+RegSet $afd3 "TransmitWorker"                 1      # ใช้ dedicated worker thread
+RegSet $afd3 "BufferMultiplier"               4      # คูณ socket buffer × 4
+RegSet $afd3 "PriorityBoost"                  1      # boost priority หลังรับ packet
+
+# --- N6: Nagle OFF + DelAck = 0 ทุก Interface (ยืนยันซ้ำ) ---
+# Nagle Algorithm รวม packet เล็กๆ เพื่อประสิทธิภาพ แต่เพิ่ม latency
+# ปิดเพื่อให้ FiveM ส่ง packet ทันทีทุกครั้ง
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
+    Set-ItemProperty $_.PSPath "TcpAckFrequency" 1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TCPNoDelay"      1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpDelAckTicks"  0 -Type DWord -EA SilentlyContinue
+}
+
+# --- N7: QoS DSCP Marking สำหรับ FiveM Traffic ---
+# Tag packet ของ FiveM ด้วย DSCP EF (Expedited Forwarding = priority สูงสุด)
+# Router/ISP ที่รองรับ QoS จะให้ packet นี้ผ่านก่อน
+$qosPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS"
+If (-not (Test-Path $qosPath)) { New-Item -Path $qosPath -Force | Out-Null }
+
+$fivemQos = "$qosPath\FiveM"
+If (-not (Test-Path $fivemQos)) { New-Item -Path $fivemQos -Force | Out-Null }
+Set-ItemProperty $fivemQos "Version"          "1.0"     -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Application Name" "FiveM.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "DSCP Value"       46        -Type DWord  -EA SilentlyContinue  # EF = 46
+Set-ItemProperty $fivemQos "Local Port"       "*"       -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Local IP"         "*"       -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Remote Port"      "30120"   -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Remote IP"        "*"       -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Protocol"         "UDP"     -Type String -EA SilentlyContinue
+Set-ItemProperty $fivemQos "Throttle Rate"    "-1"      -Type String -EA SilentlyContinue
+
+$gtaQos = "$qosPath\GTA5"
+If (-not (Test-Path $gtaQos)) { New-Item -Path $gtaQos -Force | Out-Null }
+Set-ItemProperty $gtaQos "Version"          "1.0"       -Type String -EA SilentlyContinue
+Set-ItemProperty $gtaQos "Application Name" "GTA5.exe"  -Type String -EA SilentlyContinue
+Set-ItemProperty $gtaQos "DSCP Value"       46          -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $gtaQos "Local Port"       "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $gtaQos "Remote Port"      "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $gtaQos "Throttle Rate"    "-1"        -Type String -EA SilentlyContinue
+
+# --- N8: Firewall Rules FiveM — ครบทุก port ---
+$fivemPorts = @(
+    @{n="FiveM UDP IN  30120"; p="UDP"; d="in";  port="30120"},
+    @{n="FiveM UDP OUT 30120"; p="UDP"; d="out"; port="30120"},
+    @{n="FiveM TCP IN  30120"; p="TCP"; d="in";  port="30120"},
+    @{n="FiveM TCP OUT 30120"; p="TCP"; d="out"; port="30120"},
+    @{n="FiveM UDP IN  40120"; p="UDP"; d="in";  port="40120"},
+    @{n="FiveM UDP OUT 40120"; p="UDP"; d="out"; port="40120"},
+    @{n="FiveM UDP IN  30110"; p="UDP"; d="in";  port="30110"},
+    @{n="FiveM UDP OUT 30110"; p="UDP"; d="out"; port="30110"},
+    @{n="FiveM UDP IN  33000"; p="UDP"; d="in";  port="33000"},
+    @{n="FiveM UDP OUT 33000"; p="UDP"; d="out"; port="33000"}
+)
+ForEach ($r in $fivemPorts) {
+    netsh advfirewall firewall delete rule name=$r.n 2>$null | Out-Null
+    netsh advfirewall firewall add rule name=$r.n protocol=$r.p dir=$r.d localport=$r.port action=allow 2>$null | Out-Null
+}
+
+# --- N9: Game DVR ปิดสนิท (ไม่ให้แย่ง GPU) ---
+# แต่ NVIDIA ShadowPlay ยังทำงานได้ผ่าน NvContainer service (เปิดไว้แล้ว)
+RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled"        0
+RegSet "HKCU:\System\GameConfigStore"                            "GameDVR_Enabled"           0
+RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"      "AllowgameDVR"              0
+
+# --- N10: GPU Scheduling + Preemption ลด input lag ---
+# Hardware-accelerated GPU scheduling (HAGS) — ลด latency CPU-GPU
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"   2
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    60
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    0
+
+# MaxRenderedFramesAhead = 1 → ลด frame buffer ให้น้อยที่สุด → ลด input lag
+RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
+RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
+
+# --- N11: Power Throttling OFF สำหรับทุก FiveM process ---
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
+@("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe") | ForEach-Object {
+    $tp = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$_\PerfOptions"
+    RegSet $tp "PowerThrottlingOff" 1
+}
+
+# ============================================================
+# [O] APPLY FINAL — Flush DNS + Refresh Policy + Network Reset
+# ============================================================
+
+# Winsock / IP stack reset (ทำให้ network tweak มีผล)
 netsh winsock reset        2>$null | Out-Null
 netsh int ip reset         2>$null | Out-Null
+netsh int tcp set global autotuninglevel=normal 2>$null | Out-Null
+
+# Flush + re-register DNS
+ipconfig /flushdns         2>$null | Out-Null
+ipconfig /registerdns      2>$null | Out-Null
+
+# Group Policy refresh
+gpupdate /force /wait:0    2>$null | Out-Null
