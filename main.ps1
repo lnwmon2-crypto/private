@@ -328,9 +328,9 @@ $mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfi
 
 $gpuDrv = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 RegSet $gpuDrv "HwSchMode"    2
-RegSet $gpuDrv "TdrDelay"     60
-RegSet $gpuDrv "TdrDdiDelay"  60
-RegSet $gpuDrv "TdrLevel"     0
+RegSet $gpuDrv "TdrDelay"     8    # แก้: 60 → 8 (ป้องกัน SystemSettings.exe crash)
+RegSet $gpuDrv "TdrDdiDelay"  8    # แก้: 60 → 8
+RegSet $gpuDrv "TdrLevel"     3    # แก้: 0 → 3 (ค่าปกติ Windows, TdrLevel=0 ทำให้ Settings crash)
 
 # D3D Flip — ลด Present Latency
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Video" -Recurse -EA SilentlyContinue |
@@ -428,6 +428,8 @@ function SvcForceEnable($name, $startType = "Automatic") {
 }
 
 # Core network stack — ต้องเปิดก่อน
+SvcForceEnable "lmhosts"    "Manual"      # TCP/IP NetBIOS Helper — dependency ของ NlaSvc (แก้: ไอคอนเน็ตไม่ขึ้น)
+SvcForceEnable "DoSvc"      "Automatic"   # Delivery Optimization — dependency ของ NlaSvc (แก้: dependency failed)
 SvcForceEnable "BFE"        "Automatic"   # Base Filtering Engine (ต้องมีก่อน MpsSvc)
 SvcForceEnable "nsi"        "Automatic"   # Network Store Interface (ต้องมีก่อน NlaSvc)
 SvcForceEnable "Dhcp"       "Automatic"   # DHCP Client
@@ -444,11 +446,13 @@ SvcForceEnable "NetSetupSvc" "Manual"     # Network Setup Service
 
 # Restart ตามลำดับ dependency
 Start-Sleep -Milliseconds 500
+Restart-Service lmhosts  -Force -EA SilentlyContinue  # ต้อง restart ก่อน nsi
+Start-Sleep -Milliseconds 300
 Restart-Service nsi      -Force -EA SilentlyContinue
 Start-Sleep -Milliseconds 300
 Restart-Service netprofm -Force -EA SilentlyContinue
-Start-Sleep -Milliseconds 300
-Restart-Service NlaSvc   -Force -EA SilentlyContinue
+Start-Sleep -Milliseconds 500
+Restart-Service NlaSvc   -Force -EA SilentlyContinue  # แก้: เพิ่ม sleep ก่อน ให้ dependency พร้อม
 Start-Sleep -Milliseconds 300
 Restart-Service Netman   -Force -EA SilentlyContinue
 
@@ -843,8 +847,8 @@ RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"      "AllowgameDVR"  
 # --- N10: GPU Scheduling + Preemption ลด input lag ---
 # Hardware-accelerated GPU scheduling (HAGS) — ลด latency CPU-GPU
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"   2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    60
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    8    # แก้: 60 → 8
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    3    # แก้: 0 → 3 (ป้องกัน crash)
 
 # MaxRenderedFramesAhead = 1 → ลด frame buffer ให้น้อยที่สุด → ลด input lag
 RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
