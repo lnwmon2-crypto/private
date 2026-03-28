@@ -95,10 +95,10 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "LogEvent"         
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "SendAlert"           0
 
 # Kill Timeout
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "250" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "WaitToKillAppTimeout"     "250" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "HungAppTimeout"           "250" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "AutoEndTasks"             "1"   "String"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "5000" "String"
+RegSet "HKCU:\Control Panel\Desktop"            "WaitToKillAppTimeout"     "5000" "String"
+RegSet "HKCU:\Control Panel\Desktop"            "HungAppTimeout"           "5000" "String"
+RegSet "HKCU:\Control Panel\Desktop"            "AutoEndTasks"             "0"   "String"
 RegSet "HKCU:\Control Panel\Desktop"            "ForegroundLockTimeout"    0
 RegSet "HKCU:\Control Panel\Desktop"            "MenuShowDelay"            "0"   "String"
 
@@ -295,7 +295,6 @@ RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_maxPackets"       "128" "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_showCondition"    "0"   "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX"         "game_enforcegameencryption" "0" "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netFrameTime"         "0"   "String"
-RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "rateLimitBypass"      "1"   "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netTimeout"           "15000" "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netRateThreshold"     "0"   "String"
 
@@ -332,8 +331,8 @@ $isLaptop = (Get-WmiObject -Class Win32_SystemEnclosure -EA SilentlyContinue).Ch
 
 $gpuDrv = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 RegSet $gpuDrv "HwSchMode"   2
-RegSet $gpuDrv "TdrDelay"    8   # ห้ามเปลี่ยน — ถ้าเป็น 0 ทำให้ NVCP crash
-RegSet $gpuDrv "TdrDdiDelay" 8
+RegSet $gpuDrv "TdrDelay"    60  # AMD RX 580 ต้องการค่าสูง ถ้าต่ำเกินไปทำให้ GPU reset แล้วแคช
+RegSet $gpuDrv "TdrDdiDelay" 60
 RegSet $gpuDrv "TdrLevel"    3   # ค่า default Windows — ห้ามเปลี่ยน ถ้าเป็น 0 NVCP crash
 
 # D3D Flip — ลด Present Latency
@@ -691,7 +690,7 @@ RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
 RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\Ansel" "Enable" 0  # ปิด Ansel (กิน overhead)
 
 # --- X4: Shader Cache เปิด (ลด stutter ครั้งแรก) ---
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 10737418240  # 10GB
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 1073741824  # 1GB — ป้องกัน bad_alloc
 
 # --- X5: CPU Affinity สำหรับ Game / NVIDIA IRQ ผ่าน Registry ---
 # ตั้ง IRQ affinity ให้ NVIDIA ใช้ Core 0 (Physical CPU0) ลด latency
@@ -789,11 +788,10 @@ RegSet "HKCU:\SOFTWARE\CitizenFX"         "cl_preferIPv6"              "0"     "
 # --- N2: CitizenFX Network Timing ---
 # netTimeout: timeout ก่อน disconnect (ms) — 15000 = 15วิ ป้องกัน kick จาก lag spike
 # netFrameTime: "0" = ไม่จำกัด frame time สำหรับ network processing
-# rateLimitBypass: "1" = bypass rate limiter ของ client
+# rateLimitBypass: ลบออก — บาง server ตรวจจับแล้ว kick
 # netRateThreshold: "0" = ไม่มี threshold ที่จะลด rate
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netTimeout"          "15000" "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netFrameTime"        "0"     "String"
-RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "rateLimitBypass"     "1"     "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netRateThreshold"    "0"     "String"
 # netReliableRetransmitTimeout: ลด timeout สำหรับ reliable channel retransmit
 RegSet "HKCU:\SOFTWARE\CitizenFX\Network" "netReliableRetransmitTimeout" "800" "String"
@@ -906,8 +904,8 @@ RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"      "AllowgameDVR"  
 # --- N10: GPU Scheduling + Preemption ลด input lag ---
 # Hardware-accelerated GPU scheduling (HAGS) — ลด latency CPU-GPU
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"   2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    8    # แก้: 60 → 8
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    3    # แก้: 0 → 3 (ป้องกัน crash)
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    60   # AMD RX 580 ต้องการค่าสูง
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    3
 
 # MaxRenderedFramesAhead = 1 → ลด frame buffer ให้น้อยที่สุด → ลด input lag
 RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
@@ -929,7 +927,9 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThro
 # ปิด Paging Executive (เก็บ kernel ไว้ใน RAM ไม่ให้ swap)
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"  1
 # ลด Working Set ที่ Windows สงวนไว้ให้ตัวเอง
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "PagingFiles"             "" "String"
+# PagingFiles: ไม่ตั้งค่านี้ — ปล่อยให้ Windows จัดการ Virtual Memory อัตโนมัติ
+# การปิด Page File ทำให้เกิด std::bad_alloc และ FiveM แคชทันที
+# RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "PagingFiles" "" "String"
 # ปิด ClearPageFileAtShutdown (ลด shutdown time)
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "ClearPageFileAtShutdown" 0
 # Second-level Address Translation (SLAT) page cache เพิ่ม
@@ -1127,7 +1127,7 @@ bcdedit /set useplatformtick yes              2>$null | Out-Null
 bcdedit /set disabledynamictick yes           2>$null | Out-Null
 bcdedit /deletevalue useplatformclock         2>$null | Out-Null
 # ปิด Synthetic Timer (Hyper-V timer) ถ้าไม่ได้ใช้ VM
-bcdedit /set hypervisorlaunchtype off         2>$null | Out-Null
+# bcdedit /set hypervisorlaunchtype off — ไม่ปิด Hyper-V เพราะอาจทำให้ระบบไม่เสถียร
 
 # Global timer resolution override (ทุก process ได้ 0.5ms)
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
@@ -1156,7 +1156,7 @@ RegSet $cfx "cl_disableAlternateSkins"    "1"     "String"   # ลด memory ข
 $cfxNet = "HKCU:\SOFTWARE\CitizenFX\Network"
 RegSet $cfxNet "netTimeout"                    "20000" "String"   # 20s ก่อน kick (ป้องกัน lag spike)
 RegSet $cfxNet "netFrameTime"                  "0"     "String"   # ไม่จำกัด frame time network
-RegSet $cfxNet "rateLimitBypass"               "1"     "String"   # bypass client rate limiter
+# rateLimitBypass: ลบออก — บาง server ตรวจจับแล้ว kick ออก
 RegSet $cfxNet "netRateThreshold"              "0"     "String"   # ไม่มี threshold ลด rate
 RegSet $cfxNet "netReliableRetransmitTimeout"  "600"   "String"   # retransmit เร็วขึ้น (ms)
 RegSet $cfxNet "UseNewFrameScheduler"          "1"     "String"   # scheduler ใหม่ ลด jitter
@@ -1222,13 +1222,13 @@ RegSet $nvCtrl "RMGpsBandwidthBoostEnable"   1
 RegSet $nvCtrl "EnableAsyncCompute"          1
 
 # ลด VRAM fragmentation (ป้องกัน stutter จาก VRAM full)
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 21474836480  # 20GB shader cache
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 1073741824  # 1GB — ป้องกัน bad_alloc/VRAM full
 RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ForceMaxPerf"           1
 RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "FRL_FPS"                0            # ปิด Frame Rate Limiter
 
 # Hardware GPU Scheduling (HAGS) — ลด latency CPU→GPU
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"  2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   8
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   60  # AMD RX 580 ต้องการค่าสูง
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"   3
 
 # MaxRenderedFramesAhead ต่ำสุด = ลด pre-render queue
@@ -1337,16 +1337,27 @@ RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" 
 # ลด DWM (Desktop Window Manager) overhead
 RegSet "HKCU:\Control Panel\Desktop" "DragFullWindows"          "0" "String"
 RegSet "HKCU:\Control Panel\Desktop" "MenuShowDelay"            "0" "String"
-RegSet "HKCU:\Control Panel\Desktop" "WaitToKillAppTimeout"     "2000" "String"
-RegSet "HKCU:\Control Panel\Desktop" "HungAppTimeout"           "2000" "String"
-RegSet "HKCU:\Control Panel\Desktop" "AutoEndTasks"             "1" "String"
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "2000" "String"
+RegSet "HKCU:\Control Panel\Desktop" "WaitToKillAppTimeout"     "5000" "String"
+RegSet "HKCU:\Control Panel\Desktop" "HungAppTimeout"           "5000" "String"
+RegSet "HKCU:\Control Panel\Desktop" "AutoEndTasks"             "0" "String"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "5000" "String"
 # ลด Thumbnail cache ไม่ต้องการในเกม
 RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "DisableThumbnailCache" 1
+
+# --- Q10: FiveM Cache Cleaner — ปิดการล้าง cache อัตโนมัติ ---
+# การลบ cache ทุก boot ทำให้ FiveM ต้องโหลด resource ใหม่ทั้งหมด
+# ถ้าโหลดไม่ครบหรือ resource ขาดหายระหว่าง spawn → แคชได้
+# ให้ล้าง cache เองเฉพาะเมื่อมีปัญหาเท่านั้น
+Unregister-ScheduledTask -TaskName "FiveM Cache Clean" -Confirm:$false -EA SilentlyContinue | Out-Null
 
 # ============================================================
 # [O] APPLY FINAL — Flush DNS + Refresh Policy + Network Reset
 # ============================================================
+
+# คืน Virtual Memory — สำคัญมาก ห้ามปิด Page File!
+# การปิด Page File ทำให้เกิด std::bad_alloc และ FiveM แคชทันที
+$cs = Get-WmiObject Win32_ComputerSystem -EA SilentlyContinue
+If ($cs) { $cs.AutomaticManagedPagefile = $true; $cs.Put() | Out-Null }
 
 # Winsock / IP stack reset (ทำให้ network tweak มีผล)
 netsh winsock reset        2>$null | Out-Null
