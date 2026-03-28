@@ -4,7 +4,7 @@ $path = "$env:TEMP\run.bat"
 @echo off
 mode con: cols=30 lines=15
 title C:\Windows\System32\conhost.exe
-color 07
+color 87
 cls
 
 set hist=%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
