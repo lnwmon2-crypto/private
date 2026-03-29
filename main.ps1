@@ -331,8 +331,8 @@ $isLaptop = (Get-WmiObject -Class Win32_SystemEnclosure -EA SilentlyContinue).Ch
 
 $gpuDrv = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 RegSet $gpuDrv "HwSchMode"   2
-RegSet $gpuDrv "TdrDelay"    60  # AMD RX 580 ต้องการค่าสูง ถ้าต่ำเกินไปทำให้ GPU reset แล้วแคช
-RegSet $gpuDrv "TdrDdiDelay" 60
+RegSet $gpuDrv "TdrDelay"    10  # ลดจาก 60 → 10 (ป้องกัน driver reload ซ้ำ)
+RegSet $gpuDrv "TdrDdiDelay" 10
 RegSet $gpuDrv "TdrLevel"    3   # ค่า default Windows — ห้ามเปลี่ยน ถ้าเป็น 0 NVCP crash
 
 # D3D Flip — ลด Present Latency
@@ -508,7 +508,8 @@ Restart-Service "NvContainerLocalSystem"         -Force -EA SilentlyContinue
 # Registry ที่ทำให้ NVCP เปิดไม่ขึ้น — คืนค่า
 $nvcpKey = "HKLM:\SOFTWARE\NVIDIA Corporation\Global"
 If (-not (Test-Path $nvcpKey)) { New-Item $nvcpKey -Force | Out-Null }
-Set-ItemProperty $nvcpKey "DisplayDriverVersion" "" -Type String -EA SilentlyContinue
+# หมายเหตุ: ไม่ clear DisplayDriverVersion เพราะทำให้ Windows คิดว่า driver หาย แล้ว trigger ติดตั้งใหม่
+# Set-ItemProperty $nvcpKey "DisplayDriverVersion" "" -Type String ← ลบออก
 
 # Coolbits — เปิด OC / Advanced controls ใน NVCP
 RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "Coolbits" 24
@@ -634,7 +635,8 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" "Hiberboot
 # ============================================================
 
 # --- X1: HPET ปิด (ใช้ TSC แทน — ลด latency สุดขีด) ---
-bcdedit /deletevalue useplatformclock 2>$null | Out-Null
+# หมายเหตุ: ไม่ลบ useplatformclock เพราะ Hyper-V / WHPX (BlueStacks) ต้องการ
+# bcdedit /deletevalue useplatformclock ← ลบบรรทัดนี้ออกเพื่อให้ BlueStacks ติดตั้งได้
 bcdedit /set useplatformtick yes      2>$null | Out-Null
 bcdedit /set disabledynamictick yes   2>$null | Out-Null
 
@@ -904,7 +906,7 @@ RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"      "AllowgameDVR"  
 # --- N10: GPU Scheduling + Preemption ลด input lag ---
 # Hardware-accelerated GPU scheduling (HAGS) — ลด latency CPU-GPU
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"   2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    60   # AMD RX 580 ต้องการค่าสูง
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    10   # ลดจาก 60 → 10 (ป้องกัน driver reload ซ้ำ)
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    3
 
 # MaxRenderedFramesAhead = 1 → ลด frame buffer ให้น้อยที่สุด → ลด input lag
@@ -1125,7 +1127,8 @@ RegSet "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "WiFISenseOpe
 # bcdedit ตั้ง useplatformtick ให้ใช้ TSC timer แม่นยำสุด
 bcdedit /set useplatformtick yes              2>$null | Out-Null
 bcdedit /set disabledynamictick yes           2>$null | Out-Null
-bcdedit /deletevalue useplatformclock         2>$null | Out-Null
+# หมายเหตุ: ไม่ลบ useplatformclock เพราะ Hyper-V / WHPX (BlueStacks) ต้องการ
+# bcdedit /deletevalue useplatformclock ← ลบบรรทัดนี้ออกเพื่อให้ BlueStacks ติดตั้งได้
 # ปิด Synthetic Timer (Hyper-V timer) ถ้าไม่ได้ใช้ VM
 # bcdedit /set hypervisorlaunchtype off — ไม่ปิด Hyper-V เพราะอาจทำให้ระบบไม่เสถียร
 
@@ -1228,7 +1231,7 @@ RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "FRL_FPS"             
 
 # Hardware GPU Scheduling (HAGS) — ลด latency CPU→GPU
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"  2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   60  # AMD RX 580 ต้องการค่าสูง
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   10   # ลดจาก 60 → 10 (ป้องกัน driver reload ซ้ำ)
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"   3
 
 # MaxRenderedFramesAhead ต่ำสุด = ลด pre-render queue
