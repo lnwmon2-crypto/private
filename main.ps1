@@ -964,7 +964,7 @@ Remove-Item "$env:WINDIR\Prefetch\FIVEM*"            -Force -EA SilentlyContinue
 Remove-Item "$env:WINDIR\Prefetch\GTA5*"             -Force -EA SilentlyContinue | Out-Null
 Remove-Item "$env:WINDIR\Prefetch\CITIZENFX*"        -Force -EA SilentlyContinue | Out-Null
 Stop-Service "FontCache" -Force -EA SilentlyContinue | Out-Null
-Remove-Item "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache*" -Force -EA SilentlyContinue | Out-Null
+Remove-Item "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache" -Recurse -Force -EA SilentlyContinue | Out-Null
 Start-Service "FontCache" -EA SilentlyContinue | Out-Null
 RegSet "HKLM:\SOFTWARE\ATI Technologies\Install\South Bridge\ATI HDMI Audio" "ULPS" 0 -EA SilentlyContinue
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}" -EA SilentlyContinue |
