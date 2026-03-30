@@ -39,15 +39,8 @@ powercfg -list 2>$null | Select-String $planName | ForEach-Object {
     If ($m.Success) { $planGuid = $m.Value }
 }
 If ($planGuid) { powercfg -setactive $planGuid 2>$null | Out-Null }
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ8Priority"            1
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ16Priority"           2
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ9Priority"            1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MitigationOptions"      0 "QWord"
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MitigationAuditOptions" 0 "QWord"
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "DisableExceptionChainValidation" 1
 bcdedit /deletevalue useplatformclock   2>$null | Out-Null
 bcdedit /set useplatformtick  yes       2>$null | Out-Null
 bcdedit /set disabledynamictick yes     2>$null | Out-Null
@@ -58,12 +51,6 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "AutoReboot"       
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "CrashDumpEnabled"    0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "LogEvent"            0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl" "SendAlert"           0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "5000" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "WaitToKillAppTimeout"     "5000" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "HungAppTimeout"           "5000" "String"
-RegSet "HKCU:\Control Panel\Desktop"            "AutoEndTasks"             "0"   "String"
-RegSet "HKCU:\Control Panel\Desktop"            "ForegroundLockTimeout"    0
-RegSet "HKCU:\Control Panel\Desktop"            "MenuShowDelay"            "0"   "String"
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
     Set-ItemProperty $_.PSPath "TcpAckFrequency" 1    -Type DWord -EA SilentlyContinue
     Set-ItemProperty $_.PSPath "TCPNoDelay"      1    -Type DWord -EA SilentlyContinue
@@ -111,8 +98,6 @@ RegSet $afd "DynamicBacklogGrowthDelta"        10
 RegSet $afd "IrpStackSize"                     14
 RegSet $afd "PriorityBoost"                    1
 RegSet $afd "TransmitIoLength"                 65536
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MaxSockAddrLength" 128
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MinSockAddrLength" 16
 netsh int tcp set global autotuninglevel=normal        2>$null | Out-Null
 netsh int tcp set global rsc=disabled                  2>$null | Out-Null
 netsh int tcp set global timestamps=disabled           2>$null | Out-Null
@@ -123,12 +108,6 @@ netsh int tcp set global ecncapability=disabled        2>$null | Out-Null
 netsh int tcp set global fastopen=enabled              2>$null | Out-Null
 netsh int tcp set global hystart=disabled              2>$null | Out-Null
 netsh int tcp set global pacingprofile=off             2>$null | Out-Null
-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" "NonBestEffortLimit"  0
-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" "MaxOutstandingSends" 0
-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS"    "Tc Supported"        1
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" 0xffffffff
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness"   0
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NoLazyMode"             1
 $adapters = Get-NetAdapter | Where-Object {
     $_.Status -eq "Up" -and
     $_.InterfaceDescription -notlike "*Virtual*" -and
@@ -360,7 +339,6 @@ Restart-Service "NvContainerLocalSystem"         -Force -EA SilentlyContinue
 $nvcpKey = "HKLM:\SOFTWARE\NVIDIA Corporation\Global"
 If (-not (Test-Path $nvcpKey)) { New-Item $nvcpKey -Force | Out-Null }
 Set-ItemProperty $nvcpKey "DisplayDriverVersion" "" -Type String -EA SilentlyContinue
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "Coolbits" 24
 If ($isLaptop) {
     RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerMizerEnable"  1
     RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerMizerLevel"   1
@@ -447,34 +425,14 @@ Set-MpPreference -SubmitSamplesConsent             2     -EA SilentlyContinue
     ForEach-Object { Add-MpPreference -ExclusionPath $_ -EA SilentlyContinue }
 @("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe","fivem_server.exe") |
     ForEach-Object { Add-MpPreference -ExclusionProcess $_ -EA SilentlyContinue }
-RegSet "HKCU:\Control Panel\Mouse" "MouseSpeed"       "0"   "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1"  "0"   "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2"  "0"   "String"
 RegSet "HKCU:\Control Panel\Mouse" "MouseHoverTime"   "0"   "String"
 RegSet "HKCU:\Control Panel\Mouse" "DoubleClickSpeed" "500" "String"
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"  16
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"  16
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 16
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\i8042prt\Parameters" "PollStatusIterations"  1
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "ConnectMultiplePorts" 0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "ConnectMultiplePorts" 0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters" "NoSelectiveSuspend" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters" "SelectiveSuspendEnabled" 0
-RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
-RegSet "HKCU:\Control Panel\Desktop"            "DragFullWindows"     "0" "String"
 RegSet "HKCU:\Control Panel\Desktop\WindowMetrics" "MinAnimate"       "0" "String"
 RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" 0
-RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled"        0
 RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "HistoricalCaptureEnabled" 0
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_Enabled"                        0
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"       1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible" 1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_EFSEFeatureFlags"               0
-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowgameDVR"      0
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "AutoGameModeEnabled"       0
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "AllowAutoGameMode"         0
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "UseNexusForGameBarEnabled" 0
 $pol = "HKLM:\SOFTWARE\Policies\Microsoft\Windows"
 RegSet "$pol\WindowsUpdate\AU"        "NoAutoUpdate"                    0
 RegSet "$pol\WindowsUpdate\AU"        "AUOptions"                       2
@@ -534,10 +492,6 @@ RegSet $nvDX "FRL_FPS"                     0
 RegSet $nvDX "PowerMizerEnable"            1
 RegSet $nvDX "PowerMizerLevel"             1    # Level 1 = Max Performance
 RegSet $nvDX "PowerMizerLevelAC"           1
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\Ansel" "Enable" 0
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 1073741824
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
     Where-Object { $_.PSChildName -like "VEN_10DE*" } |
     ForEach-Object {
@@ -572,7 +526,6 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfac
     Set-ItemProperty $_.PSPath "TCPNoDelay"      1 -Type DWord -EA SilentlyContinue
     Set-ItemProperty $_.PSPath "TcpDelAckTicks"  0 -Type DWord -EA SilentlyContinue
 }
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
 @("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe") | ForEach-Object {
     $throttlePath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$_\PerfOptions"
     RegSet $throttlePath "CpuPriorityClass"       3  # High
@@ -582,12 +535,6 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThro
 }
 $secPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State"
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargePageMinimum" 0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Processor" "Capabilities" 0x0007e066
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\intelppm\Parameters" "MaxIdleImplementors" 0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\amdppm\Parameters"   "MaxIdleImplementors" 0
-RegSet "HKLM:\SOFTWARE\Microsoft\DirectX" "LoadDebugRuntime"      0
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "DisableD3DDebug"      1
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "D3DXShaderDebugLevel" 0
 $ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
 @(
     "FiveM.exe",
@@ -665,33 +612,15 @@ ForEach ($r in $fivemPorts) {
     netsh advfirewall firewall delete rule name=$r.n 2>$null | Out-Null
     netsh advfirewall firewall add rule name=$r.n protocol=$r.p dir=$r.d localport=$r.port action=allow 2>$null | Out-Null
 }
-RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled"        0
-RegSet "HKCU:\System\GameConfigStore"                            "GameDVR_Enabled"           0
-RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"      "AllowgameDVR"              0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"   2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"    60
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"    3
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
 @("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe") | ForEach-Object {
     $tp = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$_\PerfOptions"
     RegSet $tp "PowerThrottlingOff" 1
 }
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"  1
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "ClearPageFileAtShutdown" 0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettings"         1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 0x26
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ8Priority"            1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ0Priority"            2
 fsutil behavior set disablelastaccess 1 2>$null | Out-Null
 fsutil behavior set memoryusage 2       2>$null | Out-Null
 fsutil behavior set disable8dot3 1      2>$null | Out-Null
 fsutil behavior set disableencryption 1 2>$null | Out-Null
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "TreatAsInternalPort" 0x0000000f
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "StartIo"             0
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
     Where-Object { $_.PSChildName -like "VEN_8086*" -or $_.PSChildName -like "VEN_144D*" } |
     ForEach-Object {
@@ -735,14 +664,7 @@ netsh int tcp set global chimney=enabled             2>$null | Out-Null
 netsh int tcp set global rss=enabled                 2>$null | Out-Null
 netsh int tcp set global nonsackrttresiliency=disabled 2>$null | Out-Null
 netsh int tcp set global maxsynretransmissions=2     2>$null | Out-Null
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DefaultTTL"               64
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "MaxUserPort"              65534
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpTimedWaitDelay"        30
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpMaxDataRetransmissions" 3
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableICMPRedirect"        0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnablePMTUDiscovery"       1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Tcp1323Opts"               1  # Window scaling + timestamps RFC1323
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpMaxDupAcks"             2
 $tasksToDisable = @(
     "\Microsoft\Windows\Defrag\ScheduledDefrag",
     "\Microsoft\Windows\Diagnosis\Scheduled",
@@ -768,22 +690,13 @@ $tasksToDisable | ForEach-Object {
 }
 $diskType = (Get-PhysicalDisk | Select-Object -First 1).MediaType
 If ($diskType -eq "SSD" -or $diskType -eq "NVMe") {
-    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher"   0
-    RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableSuperfetch"   0
     RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableBootTrace"    0
 } Else {
     RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher"   3
     RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnableSuperfetch"   3
 }
-RegSet "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
-RegSet "HKCU:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible" 1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DxgkrnlVersion" 1
 RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\FiveM.exe" "MaxDeadCount" 0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitFreeBlockThreshold" 0x00040000
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitTotalFreeThreshold" 0x00100000
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "CriticalSectionTimeout"        2592000
 Get-NetAdapter -Physical | Where-Object { $_.InterfaceDescription -like "*Wi-Fi*" -or $_.InterfaceDescription -like "*Wireless*" -or $_.InterfaceDescription -like "*802.11*" } | ForEach-Object {
     $wname = $_.Name
     Set-NetAdapterAdvancedProperty -Name $wname -DisplayName "Roaming Aggressiveness"       -DisplayValue "Lowest"   -EA SilentlyContinue
@@ -800,7 +713,6 @@ RegSet "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" "WiFISenseOpe
 bcdedit /set useplatformtick yes              2>$null | Out-Null
 bcdedit /set disabledynamictick yes           2>$null | Out-Null
 bcdedit /deletevalue useplatformclock         2>$null | Out-Null
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
 $adapters = Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" }
 $adapters | ForEach-Object {
     $idx = $_.InterfaceIndex
@@ -825,11 +737,6 @@ $exeList | Where-Object { Test-Path $_ } | ForEach-Object {
         Set-ItemProperty $layers $_ "~ DISABLEDXMAXIMIZEDWINDOWEDMODE HIGHDPIAWARE" -Type String -EA SilentlyContinue
     }
 }
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DSEBehavior"                    2
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible"  1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_EFSEFeatureFlags"               0
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"       1
 $nvCtrl = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
 If ($isLaptop) {
     RegSet $nvCtrl "EnableMidBufferPreemption"   1
@@ -847,14 +754,6 @@ RegSet $nvCtrl "OverrideMaxPerf"             1
 RegSet $nvCtrl "RMFastGC"                    1
 RegSet $nvCtrl "RMGpsBandwidthBoostEnable"   1
 RegSet $nvCtrl "EnableAsyncCompute"          1
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 1073741824
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ForceMaxPerf"           1
-RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "FRL_FPS"                0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"  2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   60
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"   3
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
 @("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe","FiveM_ChromeBrowser.exe") | ForEach-Object {
     $p = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$_\PerfOptions"
     RegSet $p "CpuPriorityClass"   3   # HIGH
@@ -865,19 +764,6 @@ RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "LargeSystemCache"           0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "IoPageLockLimit"            536870912  # 512MB I/O lock
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePagingExecutive"     1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation"  1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate"   1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsMemoryUsage"               2
-RegSet "HKCU:\Control Panel\Mouse" "MouseSpeed"      "0" "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1" "0" "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2" "0" "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseSensitivity" "10" "String"
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"  32
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"  32
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 32
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "NoSelectiveSuspend"       1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "SelectiveSuspendEnabled"  0
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\USB\Parameters"       "DisableSelectiveSuspend"  1
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\USB" -EA SilentlyContinue |
     ForEach-Object {
         Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
@@ -887,8 +773,6 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\USB" -EA SilentlyContinue |
             Set-ItemProperty $pwr "EnableSelectiveSuspend"          0 -Type DWord -EA SilentlyContinue
         }
     }
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" 0xffffffff
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness"   0
 $afd = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
 RegSet $afd "DefaultReceiveWindow"            524288   # 512KB receive window
 RegSet $afd "DefaultSendWindow"               524288   # 512KB send window
@@ -927,7 +811,6 @@ $mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfi
 }
 RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 2
 RegSet "HKCU:\Control Panel\Desktop" "DragFullWindows"          "0" "String"
-RegSet "HKCU:\Control Panel\Desktop" "MenuShowDelay"            "0" "String"
 RegSet "HKCU:\Control Panel\Desktop" "WaitToKillAppTimeout"     "2000" "String"
 RegSet "HKCU:\Control Panel\Desktop" "HungAppTimeout"           "2000" "String"
 RegSet "HKCU:\Control Panel\Desktop" "AutoEndTasks"             "1" "String"
@@ -935,13 +818,8 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Control" "WaitToKillServiceTimeout" "5000
 RegSet "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "DisableThumbnailCache" 1
 Unregister-ScheduledTask -TaskName "FiveM Cache Clean" -Confirm:$false -EA SilentlyContinue | Out-Null
 If (-not $isAMD) {
-    RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "VSync"              0
     RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "NvReflex"           1
     RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "PowerManagement"    1
-    RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "TextureQuality"     0
-    RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize" 0xFFFFFFFF
-    RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "TripleBuffering"    0
-    RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "AnisotropicMode"    0
 }
 $cppm = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583"
 RegSet $cppm "ValueMax" 0
@@ -952,19 +830,13 @@ RegSet $cpuMin "ValueMax" 100
 bcdedit /set useplatformtick yes    2>$null | Out-Null
 bcdedit /set disabledynamictick yes 2>$null | Out-Null
 bcdedit /deletevalue useplatformclock 2>$null | Out-Null
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MaximumSharedReadyQueueSize"   128
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar"   "UseNexusForGameBarEnabled"         0
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar"   "AutoGameModeEnabled"               0
-RegSet "HKCU:\SOFTWARE\Microsoft\GameBar"   "AllowAutoGameMode"                 0
 RegSet "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled"  0
-RegSet "HKCU:\System\GameConfigStore"       "GameDVR_Enabled"                   0
 RegSet "HKCU:\SOFTWARE\Microsoft\GameBar"   "GamePanelStartupTipIndex"          3
 Remove-Item "$env:WINDIR\Prefetch\FIVEM*"            -Force -EA SilentlyContinue | Out-Null
 Remove-Item "$env:WINDIR\Prefetch\GTA5*"             -Force -EA SilentlyContinue | Out-Null
 Remove-Item "$env:WINDIR\Prefetch\CITIZENFX*"        -Force -EA SilentlyContinue | Out-Null
 Stop-Service "FontCache" -Force -EA SilentlyContinue | Out-Null
-Remove-Item "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache" -Recurse -Force -EA SilentlyContinue | Out-Null
+Remove-Item "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache*" -Force -EA SilentlyContinue | Out-Null
 Start-Service "FontCache" -EA SilentlyContinue | Out-Null
 RegSet "HKLM:\SOFTWARE\ATI Technologies\Install\South Bridge\ATI HDMI Audio" "ULPS" 0 -EA SilentlyContinue
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}" -EA SilentlyContinue |
@@ -1115,9 +987,6 @@ $ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution
     RegSet $p "PowerThrottlingOff"  1
 }
 
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex"  0xffffffff
-RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness"    0
-
 $mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks"
 @("Games","FiveM","GTA5","GTA5_Enhanced","Pro Audio") | ForEach-Object {
     $t = "$mm\$_"
@@ -1130,17 +999,9 @@ $mm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfi
     RegSet $t "SFIO Priority"       "High"   "String"
 }
 
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MaximumSharedReadyQueueSize"   128
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "ThreadDpcEnable"               0
-
 bcdedit /set useplatformtick    yes  2>$null | Out-Null
 bcdedit /set disabledynamictick yes  2>$null | Out-Null
 bcdedit /deletevalue useplatformclock 2>$null | Out-Null
-
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 0x26
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ0Priority"            2
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ8Priority"            1
 
 $cppm = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583"
 RegSet $cppm "ValueMax" 0
@@ -1190,19 +1051,6 @@ RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableICMPRed
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DefaultTTL"                 64
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "Tcp1323Opts"                1
 
-RegSet "HKCU:\Control Panel\Mouse" "MouseSpeed"                "0"  "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1"           "0"  "String"
-RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2"           "0"  "String"
-RegSet "HKCU:\Control Panel\Mouse" "SmoothMouseXCurve"         ([byte[]](0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0xCC,0x0C,0x00,0x00,0x00,0x00,0x00,0x80,0x99,0x19,0x00,0x00,0x00,0x00,0x00,0x40,0x66,0x26,0x00,0x00,0x00,0x00,0x00,0x00,0x33,0x33,0x00,0x00,0x00,0x00,0x00)) "Binary"
-RegSet "HKCU:\Control Panel\Mouse" "SmoothMouseYCurve"         ([byte[]](0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x38,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x70,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xA8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE0,0x00,0x00,0x00,0x00,0x00)) "Binary"
-
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"    16
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"    16
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 16
-
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"  "NoSelectiveSuspend"      1
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"  "SelectiveSuspendEnabled" 0
-
 Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\USB" -EA SilentlyContinue | ForEach-Object {
     Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
         $pwr = "$($_.PSPath)\Device Parameters"
@@ -1222,19 +1070,6 @@ Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode"  2
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay"   60
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrLevel"   3
-
-RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D" "MaxRenderedFramesAhead" 1
-
-RegSet "HKCU:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;VRROptimizeEnable=1;" "String"
-RegSet "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;VRROptimizeEnable=1;" "String"
-
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_Enabled"                         0
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible"   1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                  2
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"         1
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_EFSEFeatureFlags"                 0
-RegSet "HKCU:\System\GameConfigStore" "GameDVR_DSEBehavior"                      2
 
 $exeList = @(
     "$env:LOCALAPPDATA\FiveM\FiveM.exe",
@@ -1268,6 +1103,793 @@ $fivemCache = "$env:LOCALAPPDATA\FiveM\FiveM.app\data\cache\priv"
 If (Test-Path $fivemCache) {
     Get-ChildItem $fivemCache -File | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -EA SilentlyContinue
 }
+
+netsh winsock reset                              2>$null | Out-Null
+netsh int ip reset                               2>$null | Out-Null
+netsh int tcp set global autotuninglevel=normal  2>$null | Out-Null
+ipconfig /flushdns                               2>$null | Out-Null
+ipconfig /registerdns                            2>$null | Out-Null
+gpupdate /force /wait:0                          2>$null | Out-Null
+Restart-Service "Audiosrv"             -Force -EA SilentlyContinue | Out-Null
+Restart-Service "AudioEndpointBuilder" -Force -EA SilentlyContinue | Out-Null
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "ThreadDpcEnable"               0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MaximumSharedReadyQueueSize"   128
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "GlobalTimerResolutionRequests" 1
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation"  0x26
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ0Priority"             2
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "IRQ8Priority"             1
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\intelppm\Parameters" "MaxIdleImplementors" 0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\amdppm\Parameters"   "MaxIdleImplementors" 0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Processor"            "Capabilities"        0x0007e066
+
+$cppm = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583"
+RegSet $cppm "ValueMax" 0
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" "PowerThrottlingOff" 1
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -like "VEN_10DE*" } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $msiP = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            If (-not (Test-Path $msiP)) { New-Item -Path $msiP -Force | Out-Null }
+            Set-ItemProperty $msiP "MSISupported"  1 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $msiP "MessageNumber" 1 -Type DWord -EA SilentlyContinue
+            $affP = "$($_.PSPath)\Device Parameters\Interrupt Management\Affinity Policy"
+            If (-not (Test-Path $affP)) { New-Item -Path $affP -Force | Out-Null }
+            Set-ItemProperty $affP "DevicePolicy"          4 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $affP "AssignmentSetOverride"  2 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+RegSet "HKCU:\Control Panel\Mouse" "MouseSpeed"      "0"  "String"
+RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1" "0"  "String"
+RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2" "0"  "String"
+RegSet "HKCU:\Control Panel\Mouse" "MouseSensitivity" "10" "String"
+RegSet "HKCU:\Control Panel\Mouse" "SmoothMouseXCurve" ([byte[]](0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0xCC,0x0C,0x00,0x00,0x00,0x00,0x00,0x80,0x99,0x19,0x00,0x00,0x00,0x00,0x00,0x40,0x66,0x26,0x00,0x00,0x00,0x00,0x00,0x00,0x33,0x33,0x00,0x00,0x00,0x00,0x00)) "Binary"
+RegSet "HKCU:\Control Panel\Mouse" "SmoothMouseYCurve" ([byte[]](0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x38,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x70,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xA8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xE0,0x00,0x00,0x00,0x00,0x00)) "Binary"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"    16
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"    16
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 16
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "NoSelectiveSuspend"      1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "SelectiveSuspendEnabled" 0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\USB\Parameters"      "DisableSelectiveSuspend" 1
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\USB" -EA SilentlyContinue | ForEach-Object {
+    Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+        $pwr = "$($_.PSPath)\Device Parameters"
+        Set-ItemProperty $pwr "EnhancedPowerManagementEnabled" 0 -Type DWord -EA SilentlyContinue
+        Set-ItemProperty $pwr "AllowIdleIrpInD3"               0 -Type DWord -EA SilentlyContinue
+        Set-ItemProperty $pwr "EnableSelectiveSuspend"          0 -Type DWord -EA SilentlyContinue
+    }
+}
+
+RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D"   "MaxRenderedFramesAhead" 1
+RegSet "HKLM:\SOFTWARE\Microsoft\Direct3D"   "MaxRenderedFramesAhead" 1
+RegSet "HKLM:\SOFTWARE\Microsoft\DirectX"    "LoadDebugRuntime"       0
+RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D"   "DisableD3DDebug"        1
+RegSet "HKCU:\SOFTWARE\Microsoft\Direct3D"   "D3DXShaderDebugLevel"   0
+RegSet "HKCU:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
+RegSet "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "SwapEffectUpgradeEnable=1;" "String"
+
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_Enabled"                        0
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_FSEBehaviorMode"                2
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_HonorUserFSEBehaviorMode"       1
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_DXGIHonorFSEWindowsCompatible"  1
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_EFSEFeatureFlags"               0
+RegSet "HKCU:\System\GameConfigStore" "GameDVR_DSEBehavior"                    2
+RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "AutoGameModeEnabled"                0
+RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "AllowAutoGameMode"                  0
+RegSet "HKCU:\SOFTWARE\Microsoft\GameBar" "UseNexusForGameBarEnabled"          0
+RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" "AllowgameDVR"      0
+
+$ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+@("FiveM.exe","FiveM_b3095.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe","FiveM_ChromeBrowser.exe") | ForEach-Object {
+    $p = "$ifeo\$_\PerfOptions"
+    RegSet $p "CpuPriorityClass"    3
+    RegSet $p "IoPriority"          3
+    RegSet $p "PagePriority"        5
+    RegSet $p "PowerThrottlingOff"  1
+}
+
+$mm2 = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks"
+@("Games","FiveM","GTA5","GTA5_Enhanced","Pro Audio") | ForEach-Object {
+    $t = "$mm2\$_"
+    RegSet $t "Affinity"            0
+    RegSet $t "Background Only"     "False" "String"
+    RegSet $t "Clock Rate"          10000
+    RegSet $t "GPU Priority"        8
+    RegSet $t "Priority"            6
+    RegSet $t "Scheduling Category" "High"  "String"
+    RegSet $t "SFIO Priority"       "High"  "String"
+}
+
+$afd4 = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afd4 "DefaultReceiveWindow"           1048576
+RegSet $afd4 "DefaultSendWindow"              1048576
+RegSet $afd4 "FastSendDatagramThreshold"      1500
+RegSet $afd4 "AlwaysSendIfPossible"           1
+RegSet $afd4 "TransmitWorker"                 1
+RegSet $afd4 "BufferMultiplier"               8
+RegSet $afd4 "PriorityBoost"                  1
+RegSet $afd4 "DoNotHoldNicBuffers"            1
+RegSet $afd4 "DisableAddressSharing"          1
+RegSet $afd4 "IrpStackSize"                   50
+RegSet $afd4 "MaxFastTransmit"                32
+RegSet $afd4 "NonBlockingSendSpecialBuffering" 1
+RegSet $afd4 "EnableDynamicBacklog"           1
+RegSet $afd4 "MinimumDynamicBacklog"          20
+RegSet $afd4 "MaximumDynamicBacklog"          65535
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
+    Set-ItemProperty $_.PSPath "TcpAckFrequency"  1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TCPNoDelay"       1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpDelAckTicks"   0 -Type DWord -EA SilentlyContinue
+}
+
+$cfxFinal = "HKCU:\SOFTWARE\CitizenFX"
+RegSet $cfxFinal "net_maxPackets"                  "128"    "String"
+RegSet $cfxFinal "net_showCondition"               "0"      "String"
+RegSet $cfxFinal "net_statsFile"                   ""       "String"
+RegSet $cfxFinal "game_enableFPSLimit"             "0"      "String"
+RegSet $cfxFinal "game_enforcegameencryption"      "0"      "String"
+RegSet $cfxFinal "cl_preferIPv6"                   "0"      "String"
+RegSet $cfxFinal "cl_drawFps"                      "0"      "String"
+RegSet $cfxFinal "cl_renderFXAA"                   "0"      "String"
+RegSet $cfxFinal "cl_disableAlternateSkins"        "1"      "String"
+RegSet $cfxFinal "cl_disableVoip"                  "0"      "String"
+RegSet $cfxFinal "render_gpuProjectedNodes"        "1"      "String"
+RegSet $cfxFinal "hud_fpsStreamingAmount"          "128"    "String"
+RegSet $cfxFinal "cl_lod_scale"                    "0.5"    "String"
+RegSet $cfxFinal "cam_smoothingAmount"             "0"      "String"
+RegSet $cfxFinal "cam_avoidance"                   "0"      "String"
+RegSet $cfxFinal "cl_vehicleStreamingBudget"       "256"    "String"
+RegSet $cfxFinal "cl_pedStreamingBudget"           "64"     "String"
+RegSet $cfxFinal "cl_objectStreamingBudget"        "128"    "String"
+RegSet $cfxFinal "cl_taskPriority"                 "1"      "String"
+RegSet $cfxFinal "instance_draw"                   "0"      "String"
+RegSet $cfxFinal "game_disableEmissiveLights"      "1"      "String"
+RegSet $cfxFinal "game_disableDistantLights"       "1"      "String"
+RegSet $cfxFinal "game_disableDecals"              "1"      "String"
+RegSet $cfxFinal "game_disableVehicleDeformation"  "1"      "String"
+RegSet $cfxFinal "game_disableGrass"               "1"      "String"
+RegSet $cfxFinal "game_disablePedBlood"            "1"      "String"
+RegSet $cfxFinal "game_disableVehicleDirt"         "1"      "String"
+RegSet $cfxFinal "game_disableShallowWater"        "1"      "String"
+RegSet $cfxFinal "game_forceHighQualityShaders"    "0"      "String"
+RegSet $cfxFinal "game_extendedDistanceScaling"    "0.5"    "String"
+RegSet $cfxFinal "game_extendedNearClipPlane"      "0"      "String"
+RegSet $cfxFinal "game_vehicleLodBias"             "0"      "String"
+RegSet $cfxFinal "game_pedLodBias"                 "0"      "String"
+RegSet $cfxFinal "game_objectLodBias"              "0"      "String"
+RegSet $cfxFinal "game_shadowQualityScale"         "0"      "String"
+RegSet $cfxFinal "game_particleQualityScale"       "0"      "String"
+RegSet $cfxFinal "game_waterQualityScale"          "0"      "String"
+RegSet $cfxFinal "game_reflectionQualityScale"     "0"      "String"
+RegSet $cfxFinal "game_terrainQualityScale"        "0"      "String"
+
+$cfxNet3 = "HKCU:\SOFTWARE\CitizenFX\Network"
+RegSet $cfxNet3 "netTimeout"                   "25000"     "String"
+RegSet $cfxNet3 "netFrameTime"                 "0"         "String"
+RegSet $cfxNet3 "netRateThreshold"             "0"         "String"
+RegSet $cfxNet3 "netReliableRetransmitTimeout" "400"       "String"
+RegSet $cfxNet3 "netPacketLossThreshold"       "0"         "String"
+RegSet $cfxNet3 "UseNewFrameScheduler"         "1"         "String"
+RegSet $cfxNet3 "netBandwidthIn"               "134217728" "String"
+RegSet $cfxNet3 "netBandwidthOut"              "67108864"  "String"
+RegSet $cfxNet3 "interpolationFactor"          "1"         "String"
+
+$citmpFinal = @(
+    "$env:APPDATA\CitizenFX\citmp-settings.yml",
+    "$env:LOCALAPPDATA\FiveM\FiveM.app\data\citmp-settings.yml"
+)
+$citmpData = @"
+GFX_TARGET_SHADOW_QUALITY: GFX_QUALITY_OFF
+GFX_TARGET_GRASS_QUALITY: GFX_QUALITY_OFF
+GFX_TARGET_REFLECTION_QUAL: GFX_QUALITY_OFF
+GFX_TARGET_SHADOW_DISTANCE: GFX_QUALITY_OFF
+GFX_TARGET_POSTFX: GFX_QUALITY_OFF
+GFX_TARGET_SHADER_QUALITY: GFX_QUALITY_OFF
+GFX_TARGET_PARTICLE_QUALITY: GFX_QUALITY_OFF
+GFX_TARGET_WATER_QUALITY: GFX_QUALITY_OFF
+GFX_TARGET_LOD_SCALE: 0
+GFX_TARGET_SHADOW_SOFTNESS: 0
+GFX_TARGET_FOG_VOLUMES: 0
+GFX_TARGET_REFLECTION_BLUR: 0
+GFX_TARGET_REFLECTION_MSAA: 0
+GFX_TARGET_TESSELLATION: 0
+"@
+$citmpFinal | ForEach-Object {
+    $d = Split-Path $_ -Parent
+    If (-not (Test-Path $d)) { New-Item -Path $d -ItemType Directory -Force | Out-Null }
+    $citmpData | Set-Content $_ -Encoding UTF8 -Force -EA SilentlyContinue
+}
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}" -EA SilentlyContinue | ForEach-Object {
+    Set-ItemProperty $_.PSPath "EnableULPS"                       0 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "EnableULPS_NA"                    0 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "PP_SclkDeepSleepDisable"          1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "PP_ThermalAutoThrottlingEnable"   0 -Type DWord -EA SilentlyContinue
+}
+
+Set-MpPreference -DisableRealtimeMonitoring        $true -EA SilentlyContinue
+Set-MpPreference -DisableBehaviorMonitoring        $true -EA SilentlyContinue
+Set-MpPreference -DisableIOAVProtection            $true -EA SilentlyContinue
+Set-MpPreference -ScanAvgCPULoadFactor             5     -EA SilentlyContinue
+Set-MpPreference -EnableLowCpuPriority             $true -EA SilentlyContinue
+@("$env:LOCALAPPDATA\FiveM","$env:ProgramFiles\FiveM") | ForEach-Object {
+    Add-MpPreference -ExclusionPath $_ -EA SilentlyContinue
+}
+@("FiveM.exe","GTA5.exe","GTA5_Enhanced.exe","CitizenFX_SubProcess.exe","FiveM_b3095.exe") | ForEach-Object {
+    Add-MpPreference -ExclusionProcess $_ -EA SilentlyContinue
+}
+
+Remove-Item "$env:WINDIR\Prefetch\FIVEM*"     -Force -EA SilentlyContinue | Out-Null
+Remove-Item "$env:WINDIR\Prefetch\GTA5*"      -Force -EA SilentlyContinue | Out-Null
+Remove-Item "$env:WINDIR\Prefetch\CITIZENFX*" -Force -EA SilentlyContinue | Out-Null
+$fivemCacheFinal = "$env:LOCALAPPDATA\FiveM\FiveM.app\data\cache\priv"
+If (Test-Path $fivemCacheFinal) {
+    Get-ChildItem $fivemCacheFinal -File | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -EA SilentlyContinue
+}
+
+$cs = Get-WmiObject Win32_ComputerSystem -EA SilentlyContinue
+If ($cs) { $cs.AutomaticManagedPagefile = $true; $cs.Put() | Out-Null }
+
+netsh winsock reset                              2>$null | Out-Null
+netsh int ip reset                               2>$null | Out-Null
+netsh int tcp set global autotuninglevel=normal  2>$null | Out-Null
+ipconfig /flushdns                               2>$null | Out-Null
+ipconfig /registerdns                            2>$null | Out-Null
+gpupdate /force /wait:0                          2>$null | Out-Null
+Restart-Service "Audiosrv"             -Force -EA SilentlyContinue | Out-Null
+Restart-Service "AudioEndpointBuilder" -Force -EA SilentlyContinue | Out-Null
+
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "Affinity"            0
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "Background Only"     "False"  "String"
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "Clock Rate"          10000
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "GPU Priority"        8
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "Priority"            6
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "Scheduling Category" "High"  "String"
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing" "SFIO Priority"       "High"  "String"
+RegSet "HKCU:\Control Panel\Desktop" "MenuShowDelay"     "0"  "String"
+RegSet "HKCU:\Control Panel\Desktop" "CursorBlinkRate"   "-1" "String"
+RegSet "HKCU:\Control Panel\Desktop" "ForegroundLockTimeout" "0"
+RegSet "HKCU:\Control Panel\Desktop" "ForegroundFlashCount"  "0"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitFreeBlockThreshold" 0x00040000
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "HeapDeCommitTotalFreeThreshold" 0x00100000
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "CriticalSectionTimeout"         2592000
+
+$csrss = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\csrss.exe\PerfOptions"
+RegSet $csrss "CpuPriorityClass"    4
+RegSet $csrss "IoPriority"          3
+$dwm = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\dwm.exe\PerfOptions"
+RegSet $dwm "CpuPriorityClass"      3
+RegSet $dwm "IoPriority"            3
+RegSet $dwm "PagePriority"          5
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MitigationOptions"             0x222222222222222 "QWord"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "MitigationAuditOptions"        0x222222222222222 "QWord"
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" "DisableExceptionChainValidation" 1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettings"              1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride"      3
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask"  3
+
+$nvDeep = "HKLM:\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak"
+RegSet $nvDeep "EnableAsyncCompute"          1
+RegSet $nvDeep "RmGdiSharedMemoryPoolSize"   0
+RegSet $nvDeep "NvContextPrimary"            1
+RegSet $nvDeep "RmProfilingAdminOnly"        0
+RegSet $nvDeep "RMDeepL2"                    0
+RegSet $nvDeep "RMFastGC"                    1
+RegSet $nvDeep "GpuPowerPolicy"              1
+RegSet $nvDeep "OverrideMaxPerf"             1
+RegSet $nvDeep "RMGpsBandwidthBoostEnable"   1
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ForceMaxPerf"            1
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "FRL_FPS"                 0
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "ShaderDiskCacheMaxSize"  0xFFFFFFFF
+RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\Ansel"   "Enable"                  0
+RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "VSync"                   0
+RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "TripleBuffering"         0
+RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "AnisotropicMode"         0
+RegSet "HKCU:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "TextureQuality"          0
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Control\Video" -Recurse -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -eq "0000" } | ForEach-Object {
+    Set-ItemProperty $_.PSPath "D3DFlipMode"            2 -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "PreferD3DFlip"          1 -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "VRROptimizationEnable"  0 -EA SilentlyContinue
+}
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object {
+        $_.PSChildName -like "VEN_8086*" -or  # Intel NIC
+        $_.PSChildName -like "VEN_10EC*" -or  # Realtek
+        $_.PSChildName -like "VEN_14E4*" -or  # Broadcom
+        $_.PSChildName -like "VEN_1969*"      # Atheros/Killer
+    } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $nicMsi = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            $nicAff = "$($_.PSPath)\Device Parameters\Interrupt Management\Affinity Policy"
+            If (-not (Test-Path $nicMsi)) { New-Item $nicMsi -Force | Out-Null }
+            Set-ItemProperty $nicMsi "MSISupported"  1 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $nicMsi "MessageNumber" 1 -Type DWord -EA SilentlyContinue
+            If (-not (Test-Path $nicAff)) { New-Item $nicAff -Force | Out-Null }
+            Set-ItemProperty $nicAff "DevicePolicy"          4 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $nicAff "AssignmentSetOverride"  4 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation"   1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate"    1
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsMemoryUsage"                2
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsMftZoneReservation"         2
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "RefsDisableLastAccessUpdate"    1
+fsutil behavior set disable8dot3       1 2>$null | Out-Null
+fsutil behavior set disablelastaccess  1 2>$null | Out-Null
+fsutil behavior set memoryusage        2 2>$null | Out-Null
+fsutil behavior set mftzone            2 2>$null | Out-Null
+fsutil behavior set encryptpagingfile  0 2>$null | Out-Null
+fsutil behavior set disableencryption  1 2>$null | Out-Null
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "TreatAsInternalPort" 0x0000000f
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "StartIo"             0
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\storahci\Parameters\Device" "SingleIO"            32
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object { $_.PSChildName -like "VEN_8086*" -or $_.PSChildName -like "VEN_144D*" -or $_.PSChildName -like "VEN_1C5C*" } |
+    ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $nvmeMsi = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            If (-not (Test-Path $nvmeMsi)) { New-Item $nvmeMsi -Force | Out-Null }
+            Set-ItemProperty $nvmeMsi "MSISupported"  1 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "Affinity"            0
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "Background Only"     "False" "String"
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "Clock Rate"          10000
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "GPU Priority"        8
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "Priority"            6
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "Scheduling Category" "High" "String"
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio" "SFIO Priority"       "High" "String"
+
+bcdedit /set bootmenupolicy    standard    2>$null | Out-Null
+bcdedit /set quietboot         yes         2>$null | Out-Null
+bcdedit /set nx                optout      2>$null | Out-Null
+bcdedit /set pae               forceenable 2>$null | Out-Null
+bcdedit /set useplatformtick   yes         2>$null | Out-Null
+bcdedit /set disabledynamictick yes        2>$null | Out-Null
+bcdedit /deletevalue useplatformclock      2>$null | Out-Null
+bcdedit /set x2apicpolicy      enable      2>$null | Out-Null
+bcdedit /set usephysicaldestination yes    2>$null | Out-Null
+
+$tcp2 = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+RegSet $tcp2 "DefaultTTL"                     64
+RegSet $tcp2 "MaxUserPort"                    65534
+RegSet $tcp2 "TcpTimedWaitDelay"              15
+RegSet $tcp2 "TCPMaxDupAcks"                  2
+RegSet $tcp2 "SackOpts"                       1
+RegSet $tcp2 "Tcp1323Opts"                    1
+RegSet $tcp2 "EnablePMTUDiscovery"            1
+RegSet $tcp2 "GlobalMaxTcpWindowSize"         16777216
+RegSet $tcp2 "TcpWindowSize"                  16777216
+RegSet $tcp2 "MaxDupAcksForFastRetransmit"    2
+RegSet $tcp2 "TCPMaxConnectRetransmissions"   2
+RegSet $tcp2 "TcpMaxDataRetransmissions"      3
+RegSet $tcp2 "TcpMaxSackBlocks"               8
+RegSet $tcp2 "EnableRSS"                      1
+RegSet $tcp2 "EnableTCPA"                     1
+RegSet $tcp2 "EnableDCA"                      1
+RegSet $tcp2 "EnableTCPChimney"               0
+RegSet $tcp2 "DisableTaskOffload"             0
+RegSet $tcp2 "MaxFreeTcbs"                    65536
+RegSet $tcp2 "MaxHashTableSize"               65536
+RegSet $tcp2 "MaxConnections"                 0xffffffff
+RegSet $tcp2 "TCPInitialRTT"                  2
+RegSet $tcp2 "KeepAliveTime"                  300000
+RegSet $tcp2 "KeepAliveInterval"              500
+RegSet $tcp2 "EnableICMPRedirect"             0
+RegSet $tcp2 "DisableUserTOSSetting"          0
+RegSet $tcp2 "IGMPLevel"                      2
+RegSet $tcp2 "EnableMulticastForwarding"      0
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
+    Set-ItemProperty $_.PSPath "TcpAckFrequency"       1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TCPNoDelay"            1 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpDelAckTicks"        0 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "MTU"                1500 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpInitialRTT"         2 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpAckDelay"           0 -Type DWord -EA SilentlyContinue
+}
+
+$afd5 = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afd5 "DefaultReceiveWindow"             1048576
+RegSet $afd5 "DefaultSendWindow"                1048576
+RegSet $afd5 "FastSendDatagramThreshold"        1500
+RegSet $afd5 "MaxFastTransmit"                  32
+RegSet $afd5 "AlwaysSendIfPossible"             1
+RegSet $afd5 "TransmitWorker"                   1
+RegSet $afd5 "BufferMultiplier"                 8
+RegSet $afd5 "PriorityBoost"                    1
+RegSet $afd5 "DoNotHoldNicBuffers"              1
+RegSet $afd5 "DisableAddressSharing"            1
+RegSet $afd5 "IrpStackSize"                     50
+RegSet $afd5 "TransmitIoLength"                 65536
+RegSet $afd5 "NonBlockingSendSpecialBuffering"   1
+RegSet $afd5 "DynamicSendBufferDisable"          0
+RegSet $afd5 "MaxBufferredReceiveBytes"          67108864
+RegSet $afd5 "MaxBufferredSendBytes"             67108864
+RegSet $afd5 "EnableDynamicBacklog"              1
+RegSet $afd5 "MinimumDynamicBacklog"             20
+RegSet $afd5 "MaximumDynamicBacklog"             65535
+RegSet $afd5 "DynamicBacklogGrowthDelta"         10
+RegSet $afd5 "DoNotForceSendAlways"              0
+RegSet $afd5 "IgnorePushBitOnReceives"           0
+
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MaxSockAddrLength" 128
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\WinSock2\Parameters" "MinSockAddrLength"  16
+
+netsh int tcp set global autotuninglevel=normal        2>$null | Out-Null
+netsh int tcp set global rsc=disabled                  2>$null | Out-Null
+netsh int tcp set global timestamps=disabled           2>$null | Out-Null
+netsh int tcp set global initialRto=1500               2>$null | Out-Null
+netsh int tcp set global maxsynretransmissions=2       2>$null | Out-Null
+netsh int tcp set global nonsackrttresiliency=disabled 2>$null | Out-Null
+netsh int tcp set global ecncapability=disabled        2>$null | Out-Null
+netsh int tcp set global fastopen=enabled              2>$null | Out-Null
+netsh int tcp set global hystart=disabled              2>$null | Out-Null
+netsh int tcp set global pacingprofile=off             2>$null | Out-Null
+netsh int tcp set global dca=enabled                   2>$null | Out-Null
+netsh int tcp set global rss=enabled                   2>$null | Out-Null
+netsh int tcp set global chimney=disabled              2>$null | Out-Null
+netsh int tcp set global netdma=disabled               2>$null | Out-Null
+netsh int tcp set global congestionprovider=ctcp       2>$null | Out-Null
+
+netsh int udp set global uro=disabled                  2>$null | Out-Null
+
+netsh int ip set global loopbacklargemtu=disabled      2>$null | Out-Null
+netsh int ip set global multicastforwarding=disabled   2>$null | Out-Null
+netsh int ip set global taskoffload=enabled            2>$null | Out-Null
+netsh int ip set global neighborcachelimit=4096        2>$null | Out-Null
+netsh int ip set global sourceroutingbehavior=drop     2>$null | Out-Null
+netsh int ip set global icmpredirects=disabled         2>$null | Out-Null
+
+Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
+    $n = $_.Name
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Interrupt Moderation"           -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Interrupt Moderation Rate"      -DisplayValue "Off"                  -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Receive Buffers"                -DisplayValue "4096"                 -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Transmit Buffers"               -DisplayValue "4096"                 -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "TCP Checksum Offload (IPv4)"    -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "TCP Checksum Offload (IPv6)"    -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "UDP Checksum Offload (IPv4)"    -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "UDP Checksum Offload (IPv6)"    -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "IP Checksum Offload"            -DisplayValue "Tx Enabled"           -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Large Send Offload V2 (IPv4)"   -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Large Send Offload V2 (IPv6)"   -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Receive Side Scaling"           -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Flow Control"                   -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Energy Efficient Ethernet"      -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Green Ethernet"                 -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Power Saving Mode"              -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Wake on Magic Packet"           -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Wake on Pattern Match"          -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Jumbo Packet"                   -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Jumbo Frame"                    -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Speed & Duplex"                 -DisplayValue "1.0 Gbps Full Duplex" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Packet Priority & VLAN"         -DisplayValue "Packet Priority & VLAN Disabled" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Maximum Number of RSS Queues"   -DisplayValue "4"                    -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "RSS Queues"                     -DisplayValue "4"                    -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Header Data Split"              -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Performance Options"            -DisplayValue "Throughput"           -EA SilentlyContinue
+    $cpuCount2 = [int](Get-CimInstance Win32_Processor | Select-Object -First 1).NumberOfLogicalProcessors
+    Set-NetAdapterRss -Name $n -NumberOfReceiveQueues ([Math]::Min($cpuCount2, 4)) -EA SilentlyContinue
+    $pwr2 = Get-NetAdapterPowerManagement -Name $n -EA SilentlyContinue
+    If ($pwr2) {
+        $pwr2.ArpOffload        = "Disabled"
+        $pwr2.NSOffload         = "Disabled"
+        $pwr2.WakeOnMagicPacket = "Disabled"
+        $pwr2.WakeOnPattern     = "Disabled"
+        $pwr2 | Set-NetAdapterPowerManagement -EA SilentlyContinue
+    }
+    Disable-NetAdapterPowerManagement -Name $n -EA SilentlyContinue
+}
+
+$qosFiveM = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\FiveM-UDP"
+If (-not (Test-Path $qosFiveM)) { New-Item $qosFiveM -Force | Out-Null }
+Set-ItemProperty $qosFiveM "Version"          "1.0"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Application Name" "FiveM.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "DSCP Value"       46          -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Local Port"       "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Local IP"         "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Remote Port"      "30120"     -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Remote IP"        "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Protocol"         "UDP"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFiveM "Throttle Rate"    "-1"        -Type String -EA SilentlyContinue
+
+$qosGTA = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\GTA5-UDP"
+If (-not (Test-Path $qosGTA)) { New-Item $qosGTA -Force | Out-Null }
+Set-ItemProperty $qosGTA "Version"          "1.0"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qosGTA "Application Name" "GTA5.exe"  -Type String -EA SilentlyContinue
+Set-ItemProperty $qosGTA "DSCP Value"       46          -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qosGTA "Local Port"       "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosGTA "Remote Port"      "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosGTA "Protocol"         "UDP"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qosGTA "Throttle Rate"    "-1"        -Type String -EA SilentlyContinue
+
+Set-DnsClientServerAddress -InterfaceIndex (Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" } | Select-Object -First 1).InterfaceIndex -ServerAddresses "1.1.1.1","1.0.0.1" -EA SilentlyContinue
+
+$dns2 = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters"
+RegSet $dns2 "MaxCacheTtl"                86400
+RegSet $dns2 "MaxNegativeCacheTtl"         0
+RegSet $dns2 "NegativeSOACacheTime"        0
+RegSet $dns2 "NetFailureCacheTime"         0
+RegSet $dns2 "CacheHashTableBucketSize"    1
+RegSet $dns2 "CacheHashTableSize"          384
+RegSet $dns2 "AdaptiveTimeoutInitialValue" 50
+RegSet $dns2 "MaxSOACacheEntryTtlLimit"    0
+RegSet $dns2 "NegativeCacheTime"           0
+
+netsh winsock reset                              2>$null | Out-Null
+netsh int ip reset                               2>$null | Out-Null
+netsh int tcp set global autotuninglevel=normal  2>$null | Out-Null
+ipconfig /flushdns                               2>$null | Out-Null
+ipconfig /registerdns                            2>$null | Out-Null
+
+$cfxMax = "HKCU:\SOFTWARE\CitizenFX"
+RegSet $cfxMax "net_maxPackets"                    "128"       "String"
+RegSet $cfxMax "net_showCondition"                 "0"         "String"
+RegSet $cfxMax "net_statsFile"                     ""          "String"
+RegSet $cfxMax "net_showBandwidth"                 "0"         "String"
+RegSet $cfxMax "game_enableFPSLimit"               "0"         "String"
+RegSet $cfxMax "game_enforcegameencryption"        "0"         "String"
+RegSet $cfxMax "cl_preferIPv6"                     "0"         "String"
+RegSet $cfxMax "cl_drawFps"                        "0"         "String"
+RegSet $cfxMax "cl_renderFXAA"                     "0"         "String"
+RegSet $cfxMax "cl_disableAlternateSkins"          "1"         "String"
+RegSet $cfxMax "cl_disableVoip"                    "0"         "String"
+RegSet $cfxMax "render_gpuProjectedNodes"          "1"         "String"
+RegSet $cfxMax "hud_fpsStreamingAmount"            "128"       "String"
+RegSet $cfxMax "cl_lod_scale"                      "0.5"       "String"
+RegSet $cfxMax "cam_smoothingAmount"               "0"         "String"
+RegSet $cfxMax "cam_avoidance"                     "0"         "String"
+RegSet $cfxMax "cl_vehicleStreamingBudget"         "256"       "String"
+RegSet $cfxMax "cl_pedStreamingBudget"             "64"        "String"
+RegSet $cfxMax "cl_objectStreamingBudget"          "128"       "String"
+RegSet $cfxMax "cl_taskPriority"                   "1"         "String"
+RegSet $cfxMax "instance_draw"                     "0"         "String"
+RegSet $cfxMax "game_disableEmissiveLights"        "1"         "String"
+RegSet $cfxMax "game_disableDistantLights"         "1"         "String"
+RegSet $cfxMax "game_disableDecals"                "1"         "String"
+RegSet $cfxMax "game_disableVehicleDeformation"    "1"         "String"
+RegSet $cfxMax "game_disableGrass"                 "1"         "String"
+RegSet $cfxMax "game_disablePedBlood"              "1"         "String"
+RegSet $cfxMax "game_disableVehicleDirt"           "1"         "String"
+RegSet $cfxMax "game_disableShallowWater"          "1"         "String"
+RegSet $cfxMax "game_forceHighQualityShaders"      "0"         "String"
+RegSet $cfxMax "game_extendedDistanceScaling"      "0.5"       "String"
+RegSet $cfxMax "game_extendedNearClipPlane"        "0"         "String"
+RegSet $cfxMax "game_vehicleLodBias"               "0"         "String"
+RegSet $cfxMax "game_pedLodBias"                   "0"         "String"
+RegSet $cfxMax "game_objectLodBias"                "0"         "String"
+RegSet $cfxMax "game_shadowQualityScale"           "0"         "String"
+RegSet $cfxMax "game_particleQualityScale"         "0"         "String"
+RegSet $cfxMax "game_waterQualityScale"            "0"         "String"
+RegSet $cfxMax "game_reflectionQualityScale"       "0"         "String"
+RegSet $cfxMax "game_terrainQualityScale"          "0"         "String"
+
+$cfxNetMax = "HKCU:\SOFTWARE\CitizenFX\Network"
+RegSet $cfxNetMax "netTimeout"                      "25000"     "String"
+RegSet $cfxNetMax "netFrameTime"                    "0"         "String"
+RegSet $cfxNetMax "netRateThreshold"                "0"         "String"
+RegSet $cfxNetMax "netReliableRetransmitTimeout"    "300"       "String"
+RegSet $cfxNetMax "netPacketLossThreshold"          "0"         "String"
+RegSet $cfxNetMax "UseNewFrameScheduler"            "1"         "String"
+RegSet $cfxNetMax "netBandwidthIn"                  "268435456" "String"
+RegSet $cfxNetMax "netBandwidthOut"                 "134217728" "String"
+RegSet $cfxNetMax "interpolationFactor"             "1"         "String"
+RegSet $cfxNetMax "netPacketTimeout"                "5000"      "String"
+RegSet $cfxNetMax "netMaxLatencyCompensation"       "0"         "String"
+RegSet $cfxNetMax "netRoutingTenacity"              "0"         "String"
+
+$tcp3 = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+RegSet $tcp3 "DefaultTTL"                    64
+RegSet $tcp3 "MaxUserPort"                   65534
+RegSet $tcp3 "TcpTimedWaitDelay"             15
+RegSet $tcp3 "TCPMaxDupAcks"                 2
+RegSet $tcp3 "SackOpts"                      1
+RegSet $tcp3 "Tcp1323Opts"                   1
+RegSet $tcp3 "EnablePMTUDiscovery"           1
+RegSet $tcp3 "GlobalMaxTcpWindowSize"        16777216
+RegSet $tcp3 "TcpWindowSize"                 16777216
+RegSet $tcp3 "MaxDupAcksForFastRetransmit"   2
+RegSet $tcp3 "TCPMaxConnectRetransmissions"  2
+RegSet $tcp3 "TcpMaxDataRetransmissions"     3
+RegSet $tcp3 "TcpMaxSackBlocks"              8
+RegSet $tcp3 "EnableRSS"                     1
+RegSet $tcp3 "EnableTCPA"                    1
+RegSet $tcp3 "EnableDCA"                     1
+RegSet $tcp3 "EnableTCPChimney"              0
+RegSet $tcp3 "DisableTaskOffload"            0
+RegSet $tcp3 "MaxFreeTcbs"                   65536
+RegSet $tcp3 "MaxHashTableSize"              65536
+RegSet $tcp3 "MaxConnections"                0xffffffff
+RegSet $tcp3 "TCPInitialRTT"                 2
+RegSet $tcp3 "KeepAliveTime"                 300000
+RegSet $tcp3 "KeepAliveInterval"             500
+RegSet $tcp3 "EnableICMPRedirect"            0
+RegSet $tcp3 "IGMPLevel"                     2
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" | ForEach-Object {
+    Set-ItemProperty $_.PSPath "TcpAckFrequency"   1    -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TCPNoDelay"        1    -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpDelAckTicks"    0    -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "MTU"               1500 -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpInitialRTT"     2    -Type DWord -EA SilentlyContinue
+    Set-ItemProperty $_.PSPath "TcpAckDelay"       0    -Type DWord -EA SilentlyContinue
+}
+
+$afdMax = "HKLM:\SYSTEM\CurrentControlSet\Services\AFD\Parameters"
+RegSet $afdMax "DefaultReceiveWindow"              1048576
+RegSet $afdMax "DefaultSendWindow"                 1048576
+RegSet $afdMax "FastSendDatagramThreshold"         1500
+RegSet $afdMax "MaxFastTransmit"                   32
+RegSet $afdMax "AlwaysSendIfPossible"              1
+RegSet $afdMax "TransmitWorker"                    1
+RegSet $afdMax "BufferMultiplier"                  8
+RegSet $afdMax "PriorityBoost"                     1
+RegSet $afdMax "DoNotHoldNicBuffers"               1
+RegSet $afdMax "DisableAddressSharing"             1
+RegSet $afdMax "IrpStackSize"                      50
+RegSet $afdMax "TransmitIoLength"                  65536
+RegSet $afdMax "NonBlockingSendSpecialBuffering"    1
+RegSet $afdMax "DynamicSendBufferDisable"           0
+RegSet $afdMax "MaxBufferredReceiveBytes"           67108864
+RegSet $afdMax "MaxBufferredSendBytes"              67108864
+RegSet $afdMax "EnableDynamicBacklog"               1
+RegSet $afdMax "MinimumDynamicBacklog"              20
+RegSet $afdMax "MaximumDynamicBacklog"              65535
+RegSet $afdMax "DynamicBacklogGrowthDelta"          10
+RegSet $afdMax "DoNotForceSendAlways"               0
+
+netsh int tcp set global autotuninglevel=normal        2>$null | Out-Null
+netsh int tcp set global rsc=disabled                  2>$null | Out-Null
+netsh int tcp set global timestamps=disabled           2>$null | Out-Null
+netsh int tcp set global initialRto=1500               2>$null | Out-Null
+netsh int tcp set global maxsynretransmissions=2       2>$null | Out-Null
+netsh int tcp set global nonsackrttresiliency=disabled 2>$null | Out-Null
+netsh int tcp set global ecncapability=disabled        2>$null | Out-Null
+netsh int tcp set global fastopen=enabled              2>$null | Out-Null
+netsh int tcp set global hystart=disabled              2>$null | Out-Null
+netsh int tcp set global pacingprofile=off             2>$null | Out-Null
+netsh int tcp set global dca=enabled                   2>$null | Out-Null
+netsh int tcp set global rss=enabled                   2>$null | Out-Null
+netsh int tcp set global chimney=disabled              2>$null | Out-Null
+netsh int tcp set global congestionprovider=ctcp       2>$null | Out-Null
+netsh int udp set global uro=disabled                  2>$null | Out-Null
+netsh int ip set global loopbacklargemtu=disabled      2>$null | Out-Null
+netsh int ip set global multicastforwarding=disabled   2>$null | Out-Null
+netsh int ip set global taskoffload=enabled            2>$null | Out-Null
+netsh int ip set global neighborcachelimit=4096        2>$null | Out-Null
+netsh int ip set global sourceroutingbehavior=drop     2>$null | Out-Null
+netsh int ip set global icmpredirects=disabled         2>$null | Out-Null
+
+RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" "NonBestEffortLimit"   0
+RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" "MaxOutstandingSends"  0
+RegSet "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS"    "Tc Supported"         1
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" 0xffffffff
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness"   0
+RegSet "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NoLazyMode"             1
+
+$qosFM = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\FiveM-Max"
+If (-not (Test-Path $qosFM)) { New-Item $qosFM -Force | Out-Null }
+Set-ItemProperty $qosFM "Version"          "1.0"       -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Application Name" "FiveM.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "DSCP Value"       46          -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qosFM "Local Port"       "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Local IP"         "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Remote Port"      "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Remote IP"        "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Protocol"         "*"         -Type String -EA SilentlyContinue
+Set-ItemProperty $qosFM "Throttle Rate"    "-1"        -Type String -EA SilentlyContinue
+
+$qosCFX = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\CitizenFX-Max"
+If (-not (Test-Path $qosCFX)) { New-Item $qosCFX -Force | Out-Null }
+Set-ItemProperty $qosCFX "Version"          "1.0"                      -Type String -EA SilentlyContinue
+Set-ItemProperty $qosCFX "Application Name" "CitizenFX_SubProcess.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $qosCFX "DSCP Value"       46                         -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qosCFX "Local Port"       "*"                        -Type String -EA SilentlyContinue
+Set-ItemProperty $qosCFX "Remote Port"      "*"                        -Type String -EA SilentlyContinue
+Set-ItemProperty $qosCFX "Protocol"         "*"                        -Type String -EA SilentlyContinue
+Set-ItemProperty $qosCFX "Throttle Rate"    "-1"                       -Type String -EA SilentlyContinue
+
+$dnsMax = "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters"
+RegSet $dnsMax "MaxCacheTtl"                86400
+RegSet $dnsMax "MaxNegativeCacheTtl"        0
+RegSet $dnsMax "NegativeSOACacheTime"       0
+RegSet $dnsMax "NetFailureCacheTime"        0
+RegSet $dnsMax "NegativeCacheTime"          0
+RegSet $dnsMax "CacheHashTableBucketSize"   1
+RegSet $dnsMax "CacheHashTableSize"         384
+RegSet $dnsMax "AdaptiveTimeoutInitialValue" 50
+RegSet $dnsMax "MaxSOACacheEntryTtlLimit"   0
+
+Get-NetAdapter -Physical | Where-Object { $_.Status -eq "Up" } | ForEach-Object {
+    $n = $_.Name
+    Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses "1.1.1.1","1.0.0.1" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Interrupt Moderation"          -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Interrupt Moderation Rate"     -DisplayValue "Off"                  -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Receive Buffers"               -DisplayValue "4096"                 -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Transmit Buffers"              -DisplayValue "4096"                 -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "TCP Checksum Offload (IPv4)"   -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "TCP Checksum Offload (IPv6)"   -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "UDP Checksum Offload (IPv4)"   -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "UDP Checksum Offload (IPv6)"   -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "IP Checksum Offload"           -DisplayValue "Tx Enabled"           -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Large Send Offload V2 (IPv4)"  -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Large Send Offload V2 (IPv6)"  -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Receive Side Scaling"          -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Flow Control"                  -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Energy Efficient Ethernet"     -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Power Saving Mode"             -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Wake on Magic Packet"          -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Wake on Pattern Match"         -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Jumbo Packet"                  -DisplayValue "Disabled"             -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Speed & Duplex"                -DisplayValue "1.0 Gbps Full Duplex" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Packet Priority & VLAN"        -DisplayValue "Packet Priority & VLAN Disabled" -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Header Data Split"             -DisplayValue "Enabled"              -EA SilentlyContinue
+    Set-NetAdapterAdvancedProperty -Name $n -DisplayName "Maximum Number of RSS Queues"  -DisplayValue "4"                    -EA SilentlyContinue
+    $pwr3 = Get-NetAdapterPowerManagement -Name $n -EA SilentlyContinue
+    If ($pwr3) {
+        $pwr3.ArpOffload        = "Disabled"
+        $pwr3.NSOffload         = "Disabled"
+        $pwr3.WakeOnMagicPacket = "Disabled"
+        $pwr3.WakeOnPattern     = "Disabled"
+        $pwr3 | Set-NetAdapterPowerManagement -EA SilentlyContinue
+    }
+    Disable-NetAdapterPowerManagement -Name $n -EA SilentlyContinue
+}
+
+Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Enum\PCI" -EA SilentlyContinue |
+    Where-Object {
+        $_.PSChildName -like "VEN_8086*" -or
+        $_.PSChildName -like "VEN_10EC*" -or
+        $_.PSChildName -like "VEN_14E4*" -or
+        $_.PSChildName -like "VEN_1969*" -or
+        $_.PSChildName -like "VEN_1FC9*"
+    } | ForEach-Object {
+        Get-ChildItem $_.PSPath -EA SilentlyContinue | ForEach-Object {
+            $nicMsi = "$($_.PSPath)\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+            $nicAff = "$($_.PSPath)\Device Parameters\Interrupt Management\Affinity Policy"
+            If (-not (Test-Path $nicMsi)) { New-Item $nicMsi -Force | Out-Null }
+            Set-ItemProperty $nicMsi "MSISupported"          1 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $nicMsi "MessageNumber"         1 -Type DWord -EA SilentlyContinue
+            If (-not (Test-Path $nicAff)) { New-Item $nicAff -Force | Out-Null }
+            Set-ItemProperty $nicAff "DevicePolicy"          4 -Type DWord -EA SilentlyContinue
+            Set-ItemProperty $nicAff "AssignmentSetOverride"  4 -Type DWord -EA SilentlyContinue
+        }
+    }
+
+@(
+    @{n="FiveM UDP IN  30120"; p="UDP"; d="in";  port="30120"},
+    @{n="FiveM UDP OUT 30120"; p="UDP"; d="out"; port="30120"},
+    @{n="FiveM TCP IN  30120"; p="TCP"; d="in";  port="30120"},
+    @{n="FiveM TCP OUT 30120"; p="TCP"; d="out"; port="30120"},
+    @{n="FiveM UDP IN  40120"; p="UDP"; d="in";  port="40120"},
+    @{n="FiveM UDP OUT 40120"; p="UDP"; d="out"; port="40120"},
+    @{n="FiveM UDP IN  30110"; p="UDP"; d="in";  port="30110"},
+    @{n="FiveM UDP OUT 30110"; p="UDP"; d="out"; port="30110"},
+    @{n="FiveM UDP IN  33000"; p="UDP"; d="in";  port="33000"},
+    @{n="FiveM UDP OUT 33000"; p="UDP"; d="out"; port="33000"}
+) | ForEach-Object {
+    netsh advfirewall firewall delete rule name=$_.n 2>$null | Out-Null
+    netsh advfirewall firewall add rule name=$_.n protocol=$_.p dir=$_.d localport=$_.port action=allow 2>$null | Out-Null
+}
+
+$cs2 = Get-WmiObject Win32_ComputerSystem -EA SilentlyContinue
+If ($cs2) { $cs2.AutomaticManagedPagefile = $true; $cs2.Put() | Out-Null }
 
 netsh winsock reset                              2>$null | Out-Null
 netsh int ip reset                               2>$null | Out-Null
