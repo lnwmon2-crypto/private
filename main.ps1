@@ -362,60 +362,52 @@ ForEach ($kv in $gfxMap.GetEnumerator()) {
 # เขียนลง GTA5 settings.xml (Documents\Rockstar Games\GTA V\settings.xml) ถ้ามีไฟล์
 $citizenFxDir = "$env:APPDATA\CitizenFX"
 
+# key ชื่อตรงกับ gta5_settings.xml จริง (case-sensitive)
+# Shadow_Distance และ Shadow_SoftShadows เป็น float/int ต่างจากตัวอื่น
 $gfxXmlMap = @{
-    "shadowQuality"     = $GFX_SHADOW_QUALITY
-    "grassQuality"      = $GFX_GRASS_QUALITY
-    "reflectionQuality" = $GFX_REFLECTION_QUAL
-    "shadowDistance"    = $GFX_SHADOW_DISTANCE
-    "postFX"            = $GFX_POSTFX
-    "shaderQuality"     = $GFX_SHADER_QUALITY
-    "particleQuality"   = $GFX_PARTICLE_QUALITY
-    "waterQuality"      = $GFX_WATER_QUALITY
-    "lodScale"          = $GFX_LOD_SCALE
-    "shadowSoftness"    = $GFX_SHADOW_SOFTNESS
-    "fogVolume"         = $GFX_FOG_VOLUMES
-    "reflectionBlur"    = $GFX_REFLECTION_BLUR
-    "reflectionMSAA"    = $GFX_REFLECTION_MSAA
-    "tessellation"      = $GFX_TESSELLATION
+    "ShadowQuality"        = [string]$GFX_SHADOW_QUALITY          # 0-3
+    "GrassQuality"         = [string]$GFX_GRASS_QUALITY           # 0-3
+    "ReflectionQuality"    = [string]$GFX_REFLECTION_QUAL         # 0-3
+    "Shadow_Distance"      = [string]([double]$GFX_SHADOW_DISTANCE / 3.0) # float 0.0-1.0 (แปลง 0-3 → 0.0-1.0)
+    "PostFX"               = [string]$GFX_POSTFX                  # 0-3
+    "ShaderQuality"        = [string]$GFX_SHADER_QUALITY          # 0-3
+    "ParticleQuality"      = [string]$GFX_PARTICLE_QUALITY        # 0-3
+    "WaterQuality"         = [string]$GFX_WATER_QUALITY           # 0-3
+    "LodScale"             = [string]([double]$GFX_LOD_SCALE)     # float
+    "Shadow_SoftShadows"   = [string]$GFX_SHADOW_SOFTNESS         # 0-3
+    "Lighting_FogVolumes"  = If ($GFX_FOG_VOLUMES -eq 0) { "false" } Else { "true" }   # bool
+    "Reflection_MipBlur"   = If ($GFX_REFLECTION_BLUR -eq 0) { "false" } Else { "true" } # bool
+    "ReflectionMSAA"       = [string]$GFX_REFLECTION_MSAA         # 0/2/4/8
+    "Tessellation"         = [string]$GFX_TESSELLATION            # 0-3
 }
 
-# วนทุก .xml ใน %APPDATA%\CitizenFX\ (รองรับทุก username อัตโนมัติ)
-If (Test-Path $citizenFxDir) {
-    Get-ChildItem -Path $citizenFxDir -Filter "*.xml" -Recurse -EA SilentlyContinue | ForEach-Object {
-        $xmlPath = $_.FullName
-        Try {
-            [xml]$xmlDoc = Get-Content $xmlPath -Encoding UTF8 -EA Stop
-            $changed = $false
-            ForEach ($kv in $gfxXmlMap.GetEnumerator()) {
-                $node = $xmlDoc.SelectSingleNode("//*[@name='$($kv.Key)']")
-                If (-not $node) { $node = $xmlDoc.SelectSingleNode("//$($kv.Key)") }
-                If ($node) {
-                    If ($node.HasAttribute("value")) { $node.SetAttribute("value", [string]$kv.Value) }
-                    Else { $node.InnerText = [string]$kv.Value }
-                    $changed = $true
-                }
-            }
-            If ($changed) { $xmlDoc.Save($xmlPath) | Out-Null }
-        } Catch { }
-    }
-}
-
-# เขียน GTA5 settings.xml (Documents\Rockstar Games\GTA V) ด้วย ถ้ามี
-$gtaXml = "$env:USERPROFILE\Documents\Rockstar Games\GTA V\settings.xml"
-If (Test-Path $gtaXml) {
+# ฟังก์ชันเขียน XML — ใช้ซ้ำกับทั้ง 2 ไฟล์
+function WriteGfxXml($xmlPath) {
     Try {
-        [xml]$xmlDoc = Get-Content $gtaXml -Encoding UTF8 -EA Stop
+        [xml]$xmlDoc = Get-Content $xmlPath -Encoding UTF8 -EA Stop
+        $changed = $false
         ForEach ($kv in $gfxXmlMap.GetEnumerator()) {
-            $node = $xmlDoc.SelectSingleNode("//*[@name='$($kv.Key)']")
-            If (-not $node) { $node = $xmlDoc.SelectSingleNode("//$($kv.Key)") }
+            # หา node ตรงๆ ด้วยชื่อ tag (เช่น <ShadowQuality value="0"/>)
+            $node = $xmlDoc.SelectSingleNode("//$($kv.Key)")
             If ($node) {
-                If ($node.HasAttribute("value")) { $node.SetAttribute("value", [string]$kv.Value) }
-                Else { $node.InnerText = [string]$kv.Value }
+                If ($node.HasAttribute("value")) { $node.SetAttribute("value", $kv.Value) }
+                Else { $node.InnerText = $kv.Value }
+                $changed = $true
             }
         }
-        $xmlDoc.Save($gtaXml) | Out-Null
+        If ($changed) {
+            $xmlDoc.Save($xmlPath) | Out-Null
+        }
     } Catch { }
 }
+
+# เขียนลง %APPDATA%\CitizenFX\gta5_settings.xml (รองรับทุก username)
+$gta5Cfg = "$citizenFxDir\gta5_settings.xml"
+If (Test-Path $gta5Cfg) { WriteGfxXml $gta5Cfg }
+
+# เขียนลง Documents\Rockstar Games\GTA V\settings.xml ด้วย ถ้ามี
+$gtaXml = "$env:USERPROFILE\Documents\Rockstar Games\GTA V\settings.xml"
+If (Test-Path $gtaXml) { WriteGfxXml $gtaXml }
 
 RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_maxPackets"       "128" "String"
 RegSet "HKCU:\SOFTWARE\CitizenFX"         "net_showCondition"    "0"   "String"
