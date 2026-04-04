@@ -62,24 +62,32 @@ function Set-InterfaceNagleOff {
 function Set-CitizenFXNetUltra {
     $c = "HKCU:\SOFTWARE\CitizenFX"
     $n = "HKCU:\SOFTWARE\CitizenFX\Network"
-    RegSet $c "net_maxPackets" "128" "String"
-    RegSet $c "net_showCondition" "0" "String"
-    RegSet $c "game_enforcegameencryption" "0" "String"
-    RegSet $c "cl_preferIPv6" "0" "String"
-    RegSet $c "game_enableFPSLimit" "0" "String"
-    RegSet $c "ui_disableMusicTheme" "1" "String"
-    RegSet $c "cl_drawFps" "0" "String"
-    RegSet $c "net_statsFile" "" "String"
-    RegSet $c "net_logFile" "" "String"
-    RegSet $c "cl_disableAlternateSkins" "1" "String"
-    RegSet $n "netFrameTime" "0" "String"
-    RegSet $n "netTimeout" "45000" "String"
-    RegSet $n "netRateThreshold" "0" "String"
-    RegSet $n "netReliableRetransmitTimeout" "350" "String"
-    RegSet $n "UseNewFrameScheduler" "1" "String"
-    RegSet $n "netPacketLossThreshold" "0" "String"
-    RegSet $n "netBandwidthIn" "104857600" "String"
-    RegSet $n "netBandwidthOut" "104857600" "String"
+    If (-not (Test-Path $c)) { New-Item $c -Force | Out-Null }
+    If (-not (Test-Path $n)) { New-Item $n -Force | Out-Null }
+    RegSet $c "net_maxPackets"               "128"       "String"
+    RegSet $c "net_showCondition"            "0"         "String"
+    RegSet $c "game_enforcegameencryption"   "0"         "String"
+    RegSet $c "cl_preferIPv6"               "0"         "String"
+    RegSet $c "game_enableFPSLimit"          "0"         "String"
+    RegSet $c "ui_disableMusicTheme"         "1"         "String"
+    RegSet $c "cl_drawFps"                   "0"         "String"
+    RegSet $c "net_statsFile"               ""          "String"
+    RegSet $c "net_logFile"                 ""          "String"
+    RegSet $c "cl_disableAlternateSkins"     "1"         "String"
+    # ต่อตรง server ไม่ผ่าน relay -- ลด hop/jitter
+    RegSet $c "net_routing"                  "0"         "String"
+    # resync เร็วขึ้นเมื่อ packet มาผิดลำดับ -- ลด desync/ผี
+    RegSet $c "net_ooPacketThreshold"        "1"         "String"
+    RegSet $n "netFrameTime"                 "0"         "String"
+    RegSet $n "netTimeout"                   "45000"     "String"
+    RegSet $n "netRateThreshold"             "0"         "String"
+    # ลด retransmit timeout 350->200ms
+    RegSet $n "netReliableRetransmitTimeout" "200"       "String"
+    RegSet $n "UseNewFrameScheduler"         "1"         "String"
+    RegSet $n "netPacketLossThreshold"       "0"         "String"
+    # เพิ่ม bandwidth 100MB->200MB
+    RegSet $n "netBandwidthIn"              "209715200" "String"
+    RegSet $n "netBandwidthOut"             "209715200" "String"
 }
 
 $planName = "Final Premium V0.0.1 by Nelly Stephod"
@@ -141,7 +149,7 @@ RegSet "HKCU:\Control Panel\Desktop"            "MenuShowDelay"            "0"  
 $tcp = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
 RegSet $tcp "DefaultTTL"                    64
 RegSet $tcp "MaxUserPort"                   65534
-RegSet $tcp "TcpTimedWaitDelay"             30
+RegSet $tcp "TcpTimedWaitDelay"             15
 RegSet $tcp "TCPMaxDupAcks"                2
 RegSet $tcp "SackOpts"                      1
 RegSet $tcp "Tcp1323Opts"                   1
@@ -509,6 +517,14 @@ RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1"  "0"   "String"
 RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2"  "0"   "String"
 RegSet "HKCU:\Control Panel\Mouse" "MouseHoverTime"   "0"   "String"
 RegSet "HKCU:\Control Panel\Mouse" "DoubleClickSpeed" "500" "String"
+# Linear mouse curve -- ปิด Windows acceleration สมบูรณ์
+$linearCurve = [byte[]](0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+                         0xC0,0xCC,0x0C,0x00,0x00,0x00,0x00,0x00,
+                         0x80,0x99,0x19,0x00,0x00,0x00,0x00,0x00,
+                         0x40,0x66,0x26,0x00,0x00,0x00,0x00,0x00,
+                         0x00,0x33,0x33,0x00,0x00,0x00,0x00,0x00)
+Set-ItemProperty "HKCU:\Control Panel\Mouse" "SmoothMouseXCurve" $linearCurve -Type Binary -EA SilentlyContinue
+Set-ItemProperty "HKCU:\Control Panel\Mouse" "SmoothMouseYCurve" $linearCurve -Type Binary -EA SilentlyContinue
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"  16
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"  16
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 16
@@ -717,7 +733,7 @@ $gtaQos = "$qosPath\GTA5"
 If (-not (Test-Path $gtaQos)) { New-Item -Path $gtaQos -Force | Out-Null }
 Set-ItemProperty $gtaQos "Version"          "1.0"       -Type String -EA SilentlyContinue
 Set-ItemProperty $gtaQos "Application Name" "GTA5.exe"  -Type String -EA SilentlyContinue
-Set-ItemProperty $gtaQos "DSCP Value"       46          -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $gtaQos "DSCP Value"       20          -Type DWord  -EA SilentlyContinue
 Set-ItemProperty $gtaQos "Local Port"       "*"         -Type String -EA SilentlyContinue
 Set-ItemProperty $gtaQos "Remote Port"      "*"         -Type String -EA SilentlyContinue
 Set-ItemProperty $gtaQos "Throttle Rate"    "-1"        -Type String -EA SilentlyContinue
@@ -797,7 +813,7 @@ Get-NetAdapter -Physical | ForEach-Object {
 
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DefaultTTL"               64
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "MaxUserPort"              65534
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpTimedWaitDelay"        30
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpTimedWaitDelay"        15
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "TcpMaxDataRetransmissions" 3
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnableICMPRedirect"        0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "EnablePMTUDiscovery"       1
@@ -959,9 +975,9 @@ RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold1" "0" "String"
 RegSet "HKCU:\Control Panel\Mouse" "MouseThreshold2" "0" "String"
 RegSet "HKCU:\Control Panel\Mouse" "MouseSensitivity" "10" "String"
 
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"  32
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"  32
-RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 32
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouclass\Parameters" "MouseDataQueueSize"    16
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\mouhid\Parameters"   "MouseDataQueueSize"    16
+RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters" "KeyboardDataQueueSize" 16
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "NoSelectiveSuspend"       1
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\HidUsb\Parameters"   "SelectiveSuspendEnabled"  0
 RegSet "HKLM:\SYSTEM\CurrentControlSet\Services\USB\Parameters"       "DisableSelectiveSuspend"  1
@@ -995,7 +1011,7 @@ $qos = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\FiveM-Ultra"
 If (-not (Test-Path $qos)) { New-Item $qos -Force | Out-Null }
 Set-ItemProperty $qos "Version"           "1.0"       -Type String -EA SilentlyContinue
 Set-ItemProperty $qos "Application Name" "FiveM.exe" -Type String -EA SilentlyContinue
-Set-ItemProperty $qos "DSCP Value"       46           -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qos "DSCP Value"       20           -Type DWord  -EA SilentlyContinue
 Set-ItemProperty $qos "Local Port"       "*"          -Type String -EA SilentlyContinue
 Set-ItemProperty $qos "Remote Port"      "30120"      -Type String -EA SilentlyContinue
 Set-ItemProperty $qos "Protocol"         "UDP"        -Type String -EA SilentlyContinue
@@ -1050,7 +1066,7 @@ $qosSub = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\CitizenFX-Sub"
 If (-not (Test-Path $qosSub)) { New-Item $qosSub -Force | Out-Null }
 Set-ItemProperty $qosSub "Version"           "1.0" -Type String -EA SilentlyContinue
 Set-ItemProperty $qosSub "Application Name" "CitizenFX_SubProcess.exe" -Type String -EA SilentlyContinue
-Set-ItemProperty $qosSub "DSCP Value"        46 -Type DWord -EA SilentlyContinue
+Set-ItemProperty $qosSub "DSCP Value"        20 -Type DWord -EA SilentlyContinue
 Set-ItemProperty $qosSub "Local Port"        "*" -Type String -EA SilentlyContinue
 Set-ItemProperty $qosSub "Remote Port"       "30120" -Type String -EA SilentlyContinue
 Set-ItemProperty $qosSub "Protocol"          "UDP" -Type String -EA SilentlyContinue
@@ -1227,6 +1243,20 @@ RegSet $dxUlt "DirectXUserGlobalSettings" "VRROptimizeEnable=0;SwapEffectUpgrade
 RegSet "HKLM:\SOFTWARE\Microsoft\DirectX\UserGpuPreferences" "DirectXUserGlobalSettings" "VRROptimizeEnable=0;SwapEffectUpgradeEnable=1;" "String"
 
 If (Test-Path "$env:LOCALAPPDATA\FiveM") { attrib +s "$env:LOCALAPPDATA\FiveM" 2>$null | Out-Null }
+
+# NVIDIA Reflex Ultra -- ลด GPU-to-display latency
+RegSet "HKLM:\SOFTWARE\NVIDIA Corporation\Global\NVTweak" "NvCplLowLatencyMode" 3
+
+# QoS สำหรับ CitizenFX_SubProcess.exe (ตัวส่ง UDP packet จริง)
+$qosSub2 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\QOS\CitizenFX-Sub"
+If (-not (Test-Path $qosSub2)) { New-Item $qosSub2 -Force | Out-Null }
+Set-ItemProperty $qosSub2 "Version"          "1.0"                      -Type String -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "Application Name" "CitizenFX_SubProcess.exe" -Type String -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "DSCP Value"       20                         -Type DWord  -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "Local Port"       "*"                        -Type String -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "Remote Port"      "30120"                    -Type String -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "Protocol"         "UDP"                      -Type String -EA SilentlyContinue
+Set-ItemProperty $qosSub2 "Throttle Rate"    "-1"                       -Type String -EA SilentlyContinue
 
 Set-CitizenFXNetUltra
 
